@@ -21,3 +21,6 @@ zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    bendSmoother_.proc
 # Template arguments are still deduced, so queue semantics are unchanged.
 zazampler_patch("${zazampler_sfizz}/external/atomic_queue/include/atomic_queue/atomic_queue.h" "Base::template do_pop_any(" "Base::template do_pop_any<>(")
 zazampler_patch("${zazampler_sfizz}/external/atomic_queue/include/atomic_queue/atomic_queue.h" "Base::template do_push_any(" "Base::template do_push_any<>(")
+# Offline rendering must also drain requests not yet picked up by the dispatcher.
+# Its mutex prevents a request moving from the queue to loadingJobs between checks.
+zazampler_patch("${zazampler_sfizz}/src/sfizz/FilePool.cpp" "void sfz::FilePool::waitForBackgroundLoading() noexcept\n{\n    std::lock_guard<std::mutex> guard { loadingJobsMutex };" "void sfz::FilePool::waitForBackgroundLoading() noexcept\n{\n    std::lock_guard<std::mutex> guard { loadingJobsMutex };\n\n    QueuedFileData queuedData;\n    while (filesToLoad->try_pop(queuedData))\n        loadingJobs.push_back(threadPool->enqueue([this](const QueuedFileData& data) { loadingJob(data); }, std::move(queuedData)));")

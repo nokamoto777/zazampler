@@ -54,6 +54,14 @@ inline void run(const std::string& sfz) {
     auto low=audio(128,0),high=audio(128,1200),split=audio(257,1200);
     auto frequency=[](const std::vector<float>& x){int crossings=0;for(size_t i=4801;i<x.size();++i)if(x[i-1]<=0 && x[i]>0)++crossings;return crossings*48000./(x.size()-4800);};
     require(std::abs(frequency(low)-440)<4 && std::abs(frequency(high)-880)<4,"sfizz pitch buffer must change measured audio frequency");
+    // Each fresh engine queues sample streaming on note-on. Offline render must
+    // wait even if the dispatcher has not moved that request to its jobs yet.
+    for(int attempt=0;attempt<8;++attempt) {
+        const auto repeated=audio(128,1200);
+        const auto hz=frequency(repeated);
+        if(std::abs(hz-880)>=4)
+            throw std::runtime_error("offline streaming pitch: expected 880 Hz, got "+std::to_string(hz));
+    }
     double error=0;for(size_t i=0;i<high.size();++i)error+=std::abs(high[i]-split[i]);
     require(error/high.size()<0.001,"pitch render must not depend on host block size");
     const auto absolute=audio(128,6900,true,81);
