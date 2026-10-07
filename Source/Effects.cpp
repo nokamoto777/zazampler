@@ -10,11 +10,15 @@ float Effects::Svf::tick(float x,float g,float k,int mode) {
     switch(mode) {case 3:case 4:return hp;case 5:return k*v1;case 6:return hp+v2;default:return v2;}
 }
 void Effects::Eq::coefficients(double sr,float hz,float db,float q) {
+    // A neutral bell is exactly the identity. Running its recursive form can
+    // accumulate cancellation residue when Apple Clang contracts multiply/add.
+    bypass = db == 0.f;
+    if(bypass) {z1=z2=0.f;return;}
     const float w=2*pi*std::min(hz,static_cast<float>(sr*0.45))/static_cast<float>(sr);
     const float a=std::pow(10.f,db/40),alpha=std::sin(w)/(2*q),c=std::cos(w),a0=1+alpha/a;
     b0=(1+alpha*a)/a0;b1=-2*c/a0;b2=(1-alpha*a)/a0;a1=-2*c/a0;a2=(1-alpha/a)/a0;
 }
-float Effects::Eq::tick(float x) { const float y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;return y; }
+float Effects::Eq::tick(float x) { if(bypass)return x;const float y=b0*x+z1;z1=b1*x-a1*y+z2;z2=b2*x-a2*y;return y; }
 float Effects::read(const std::vector<float>& data,size_t write,float samples) {
     float pos=static_cast<float>(write)-samples;
     const float size=static_cast<float>(data.size());

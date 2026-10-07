@@ -1,0 +1,61 @@
+name: macOS arm64 build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      BUILD_JOBS: '2'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          if ! command -v cmake >/dev/null; then brew install cmake; fi
+          cmake --version
+      - name: Build, test and verify signatures
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ci-logs
+          bash scripts/build-macos.sh 2>&1 | tee ci-logs/build-macos.log
+      - name: Package binary bundles
+        run: bash scripts/package-macos.sh
+      - name: Upload binaries
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: ZaZampler-macOS-arm64-${{ github.run_number }}
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Upload build and test logs
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: macOS-build-logs-${{ github.run_number }}
+          path: |
+            ci-logs/
+            build-macos/Testing/Temporary/
+            build-macos/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn
+          retention-days: 14

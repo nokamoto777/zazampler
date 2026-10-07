@@ -2,7 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [[ "$(uname -s)" == Darwin ]] || { echo 'macOS required' >&2; exit 1; }
-products="$PWD/build-macos/ZaZampler_artefacts/Release"
+if [[ -d "$PWD/VST3/ZaZampler.vst3" ]]; then
+  products="$PWD" # Downloaded binary package.
+else
+  products="$PWD/build-macos/ZaZampler_artefacts/Release"
+fi
 for path in 'VST3/ZaZampler.vst3' 'AU/ZaZampler.component' 'Standalone/ZaZampler.app'; do
   [[ -d "$products/$path" ]] || { echo "Missing build output: $path" >&2; exit 1; }
 done

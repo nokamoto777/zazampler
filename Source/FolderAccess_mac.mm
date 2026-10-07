@@ -16,7 +16,7 @@ FolderAccess::FolderAccess(const std::string& p, const std::string& b) : path(p)
             NSData* data = [[NSData alloc] initWithBase64EncodedString:[NSString stringWithUTF8String:b.c_str()] options:0];
             BOOL stale = NO;
             u = [NSURL URLByResolvingBookmarkData:data options:(NSURLBookmarkResolutionWithSecurityScope | NSURLBookmarkResolutionWithoutUI)
-                 relativeToURL:nil bookmarkDataIsStale:&stale error:nil];
+                 relativeToURL:nil bookmarkDataIsStale:&stale error:nullptr];
             [data release];
             if (u) {
                 scoped = [u startAccessingSecurityScopedResource];

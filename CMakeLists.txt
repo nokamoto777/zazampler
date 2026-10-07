@@ -8,6 +8,11 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(ZAZAMPLER_CORE_ONLY "Build engine regression test without GUI dependencies" OFF)
 set(ZAZAMPLER_JUCE_PATH "" CACHE PATH "Optional existing JUCE 8.0.6 checkout")
 set(ZAZAMPLER_SFIZZ_PATH "" CACHE PATH "Optional existing sfizz 1.2.3 checkout")
+# sfizz 1.2.3 treats "arm.*" as 32-bit ARM and adds -mfpu/-mfloat-abi.
+# Use its canonical AArch64 name; the actual Xcode target remains arm64.
+if(APPLE AND CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+  set(PROJECT_SYSTEM_PROCESSOR aarch64 CACHE STRING "sfizz target processor" FORCE)
+endif()
 include(FetchContent)
 foreach(opt SFIZZ_JACK SFIZZ_RENDER SFIZZ_SHARED SFIZZ_TESTS SFIZZ_DEMOS SFIZZ_BENCHMARKS ENABLE_LTO)
   set(${opt} OFF CACHE BOOL "" FORCE)
