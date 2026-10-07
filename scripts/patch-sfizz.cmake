@@ -17,3 +17,7 @@ zazampler_patch("${zazampler_sfizz}/src/sfizz/SynthMessaging.cpp" "        MATCH
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    int initialDelay_ { 0 };" "    unsigned zazamplerOffset_ = 0;\n    int initialDelay_ { 0 };")
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    auto delayed_buffer = buffer.subspan(delay);" "    impl.zazamplerOffset_ = static_cast<unsigned>(delay);\n    auto delayed_buffer = buffer.subspan(delay);")
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    bendSmoother_.process(pitchSpan, pitchSpan);" "    bendSmoother_.process(pitchSpan, pitchSpan);\n    const auto& cfg = resources_.getSynthConfig();\n    if (cfg.zazamplerPitch)\n        for (size_t i = 0; i < numFrames && i + zazamplerOffset_ < cfg.zazamplerPitchCount; ++i)\n            pitchSpan[i] += cfg.zazamplerPitch[i + zazamplerOffset_] - (cfg.zazamplerAbsolutePitch ? 100.0f * triggerEvent_.number : 0.0f);")
+# Apple Clang 17+ requires <> after the dependent template disambiguator.
+# Template arguments are still deduced, so queue semantics are unchanged.
+zazampler_patch("${zazampler_sfizz}/external/atomic_queue/include/atomic_queue/atomic_queue.h" "Base::template do_pop_any(" "Base::template do_pop_any<>(")
+zazampler_patch("${zazampler_sfizz}/external/atomic_queue/include/atomic_queue/atomic_queue.h" "Base::template do_push_any(" "Base::template do_push_any<>(")
