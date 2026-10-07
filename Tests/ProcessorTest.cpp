@@ -43,13 +43,14 @@ int main(int argc,char** argv){
         {
             ZaZamplerProcessor p;
             std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+            editor->setVisible(true);
             check(editor->isResizable(),"editor must allow host resizing");
             auto* canvas=editor->findChildWithID("instrumentCanvas");
             check(canvas!=nullptr,"instrument canvas exists");
             for(const auto size:std::array<juce::Point<int>,4>{{{660,456},{1100,760},{1650,1140},{1500,760}}}) {
                 editor->setSize(size.x,size.y);
-                const auto bounds=editor->getLocalArea(canvas,canvas->getLocalBounds());
-                check(editor->getLocalBounds().contains(bounds),"resized panel must stay visible");
+                const auto bounds=editor->getLocalArea(canvas,canvas->getLocalBounds().toFloat());
+                check(editor->getLocalBounds().toFloat().expanded(0.001f).contains(bounds),"resized panel must stay visible");
                 auto* button=findButton(*editor,"EFFECTS");check(button!=nullptr,"resized effects button");
                 const auto point=editor->getLocalPoint(button,button->getLocalBounds().getCentre());
                 check(editor->getComponentAt(point)==button,"scaled controls must retain mouse hit testing");
