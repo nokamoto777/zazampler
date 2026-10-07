@@ -35,6 +35,11 @@ FXB側のフィルター／FXは近似変換です。エンベロープ、LFO、
 以前のバージョンを使用中のプロジェクトはバックアップを保存してから移行してください。
 インストールスクリプトは旧名のプラグイン／アプリを退避して重複スキャンを防ぎます。
 
+## GitHub Actionsのバイナリ
+
+Actionsの `macOS arm64 build` が成功すると、VST3・AUv2・AUv3入りStandaloneアプリをZIPでダウンロードできます。mainへのpush／PR／手動実行に対応。アドホック署名の開発用ビルドで、Apple公証は含みません。
+取得・インストール手順は [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) を参照してください。
+
 ## Macでビルド
 
 必要なもの：フル版Xcode（Command Line ToolsのみではAUv3をビルドできません）、CMake、Git、初回依存取得用インターネット接続。
