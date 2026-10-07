@@ -1,0 +1,93 @@
+cmake_minimum_required(VERSION 3.22)
+# Older pinned dependencies still use pre-3.5 policy versions.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
+project(ZaZampler VERSION 0.8.0 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+option(ZAZAMPLER_CORE_ONLY "Build engine regression test without GUI dependencies" OFF)
+set(ZAZAMPLER_JUCE_PATH "" CACHE PATH "Optional existing JUCE 8.0.6 checkout")
+set(ZAZAMPLER_SFIZZ_PATH "" CACHE PATH "Optional existing sfizz 1.2.3 checkout")
+include(FetchContent)
+foreach(opt SFIZZ_JACK SFIZZ_RENDER SFIZZ_SHARED SFIZZ_TESTS SFIZZ_DEMOS SFIZZ_BENCHMARKS ENABLE_LTO)
+  set(${opt} OFF CACHE BOOL "" FORCE)
+endforeach()
+if(ZAZAMPLER_SFIZZ_PATH)
+  add_subdirectory("${ZAZAMPLER_SFIZZ_PATH}" sfizz EXCLUDE_FROM_ALL)
+else()
+  FetchContent_Declare(sfizz GIT_REPOSITORY https://github.com/sfztools/sfizz.git
+    GIT_TAG 4e70dc0bef53b41f2853ed46e26f5911114c92d0 GIT_SUBMODULES_RECURSE TRUE)
+  FetchContent_MakeAvailable(sfizz)
+endif()
+if(ZAZAMPLER_SFIZZ_PATH)
+  set(zazampler_sfizz "${ZAZAMPLER_SFIZZ_PATH}")
+else()
+  set(zazampler_sfizz "${sfizz_SOURCE_DIR}")
+endif()
+include(scripts/patch-sfizz.cmake)
+add_library(zazampler_engine Source/Engine.cpp Source/ZamplerBank.cpp)
+target_include_directories(zazampler_engine PUBLIC Source)
+target_link_libraries(zazampler_engine PUBLIC sfizz::sfizz)
+enable_testing()
+add_executable(engine_test Tests/EngineTest.cpp)
+target_link_libraries(engine_test PRIVATE zazampler_engine)
+add_test(NAME engine_audio COMMAND engine_test "${CMAKE_CURRENT_SOURCE_DIR}/Demo")
+add_executable(bank_test Tests/BankTest.cpp)
+target_link_libraries(bank_test PRIVATE zazampler_engine)
+set(ZAZAMPLER_FXB_TEST_FILE "" CACHE FILEPATH "Optional Colours FXB for real-file regression")
+if(ZAZAMPLER_FXB_TEST_FILE)
+  add_test(NAME bank_format COMMAND bank_test "${ZAZAMPLER_FXB_TEST_FILE}")
+else()
+  add_test(NAME bank_format COMMAND bank_test)
+endif()
+if(ZAZAMPLER_CORE_ONLY)
+  return()
+endif()
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
+if(ZAZAMPLER_JUCE_PATH)
+  add_subdirectory("${ZAZAMPLER_JUCE_PATH}" juce EXCLUDE_FROM_ALL)
+else()
+  FetchContent_Declare(juce GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+    GIT_TAG 51a8a6d7aeae7326956d747737ccf1575e61e209)
+  FetchContent_MakeAvailable(juce)
+endif()
+set(formats VST3 Standalone)
+if(APPLE)
+  # Xcode embeds the AUv3 extension in the standalone containing app.
+  list(APPEND formats AU AUv3)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    message(FATAL_ERROR "macOS AUv3 builds require -G Xcode")
+  endif()
+endif()
+juce_add_plugin(ZaZampler
+  COMPANY_NAME "LocalAudio" BUNDLE_ID "audio.localaudio.zazampler"
+  PLUGIN_MANUFACTURER_CODE Qsmp PLUGIN_CODE Qsfz
+  PRODUCT_NAME "ZaZampler" FORMATS ${formats}
+  IS_SYNTH TRUE NEEDS_MIDI_INPUT TRUE NEEDS_MIDI_OUTPUT FALSE
+  IS_MIDI_EFFECT FALSE EDITOR_WANTS_KEYBOARD_FOCUS FALSE
+  COPY_PLUGIN_AFTER_BUILD FALSE VST3_CATEGORIES Instrument Sampler
+  AU_MAIN_TYPE kAudioUnitType_MusicDevice AU_SANDBOX_SAFE TRUE
+  APP_SANDBOX_ENABLED TRUE
+  APP_SANDBOX_OPTIONS "com.apple.security.files.user-selected.read-only"
+    "com.apple.security.files.bookmarks.app-scope" "com.apple.security.device.audio-input")
+target_sources(ZaZampler PRIVATE Source/Processor.cpp Source/Editor.cpp Source/Effects.cpp Source/Parameters.cpp Source/BankImport.cpp)
+target_include_directories(ZaZampler PUBLIC Source)
+if(APPLE)
+  set_target_properties(ZaZampler_Standalone PROPERTIES XCODE_EMBED_APP_EXTENSIONS_CODE_SIGN_ON_COPY YES)
+endif()
+if(APPLE)
+  target_sources(ZaZampler PRIVATE Source/FolderAccess_mac.mm)
+  target_link_libraries(ZaZampler PRIVATE "-framework Foundation")
+else()
+  target_sources(ZaZampler PRIVATE Source/FolderAccess.cpp)
+endif()
+target_compile_definitions(ZaZampler PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0
+  JUCE_VST3_CAN_REPLACE_VST2=0 JUCE_DISPLAY_SPLASH_SCREEN=0)
+target_link_libraries(ZaZampler PRIVATE zazampler_engine juce::juce_audio_utils
+  PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+# Exercise processor/state and chunked MIDI without a window or audio device.
+add_executable(processor_test Tests/ProcessorTest.cpp)
+target_link_libraries(processor_test PRIVATE ZaZampler zazampler_engine juce::juce_audio_utils)
+add_test(NAME processor_state COMMAND processor_test "${CMAKE_CURRENT_SOURCE_DIR}/Demo")
