@@ -1,0 +1,5 @@
+<global> ampeg_attack=0.002 ampeg_release=0.05
+<group> lovel=1 hivel=63
+<region> sample=tone.wav key=60 volume=-6
+<group> lovel=64 hivel=127
+<region> sample=tone.wav key=72 volume=-6

@@ -1,0 +1,3 @@
+// Long source release to audition ZaZampler's additional global ADSR.
+// Select this instrument, enable AMP ENVELOPE, then vary Attack/Release.
+<region> sample=tone.wav pitch_keycenter=69 loop_mode=loop_continuous loop_start=0 loop_end=47999 ampeg_attack=0.001 ampeg_sustain=100 ampeg_release=30
