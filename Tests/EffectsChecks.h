@@ -19,6 +19,13 @@ inline void run() {
     for(size_t i=0;i<l.size();++i)l[i]=r[i]=0.1f*std::sin(static_cast<float>(i)*0.1f);
     original=l;bypass.process(l.data(),r.data(),4096,p,120);
     for(size_t i=0;i<l.size();++i)require(std::abs(l[i]-original[i])<1.e-6f,"FX bypass changes gain or waveform");
+    // Neutral EQ remains transparent even for narrow, low-frequency poles,
+    // where FMA cancellation residue was amplified on Apple Silicon.
+    for(float hz:{30.f,200.f,3000.f}) {
+        FxSettings neutral;neutral.gainDb=0;neutral.eq1Hz=neutral.eq2Hz=hz;neutral.eq1Q=neutral.eq2Q=10;
+        Effects eq;eq.prepare(48000);l=original;r=original;eq.process(l.data(),r.data(),4096,neutral,120);
+        for(size_t i=0;i<l.size();++i)require(std::abs(l[i]-original[i])<1.e-6f && std::abs(r[i]-original[i])<1.e-6f,"neutral EQ FMA regression");
+    }
     p.cutoff=1000;p.resonance=0.707f;p.filterMode=1;
     require(response(p,100)>0.06f && response(p,10000)<0.001f,"LP12 response");
     const float lp12=response(p,4000);p.filterMode=2;require(response(p,4000)<lp12*0.2f,"LP24 slope");

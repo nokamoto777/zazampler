@@ -36,6 +36,7 @@ private:
     };
     struct Eq {
         float b0=1,b1=0,b2=0,a1=0,a2=0,z1=0,z2=0;
+        bool bypass=true;
         void coefficients(double sr,float hz,float db,float q);
         float tick(float x);
     };
