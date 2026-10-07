@@ -13,7 +13,7 @@ for relative in 'VST3/ZaZampler.vst3' 'AU/ZaZampler.component' 'Standalone/ZaZam
   [[ -d "$bundle" ]] || { echo "Missing: $bundle" >&2; exit 1; }
   codesign --verify --deep --strict --verbose=2 "$bundle"
   executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Contents/Info.plist")
-  lipo -verify_arch arm64 "$bundle/Contents/MacOS/$executable"
+  lipo "$bundle/Contents/MacOS/$executable" -verify_arch arm64
   ditto "$bundle" "$package/$relative"
 done
 ditto Demo "$package/Demo"
