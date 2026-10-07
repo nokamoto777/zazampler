@@ -7,6 +7,14 @@
 #include <iostream>
 #include <stdexcept>
 static void check(bool v,const char* m){if(!v)throw std::runtime_error(m);}
+static juce::TextButton* findButton(juce::Component& parent,const juce::String& title) {
+    for(auto* child:parent.getChildren()) {
+        if(auto* button=dynamic_cast<juce::TextButton*>(child))
+            if(button->getButtonText()==title)return button;
+        if(auto* button=findButton(*child,title))return button;
+    }
+    return nullptr;
+}
 static void wait(ZaZamplerProcessor& p){
     const auto end=std::chrono::steady_clock::now()+std::chrono::seconds(15);
     while(p.isLoading() && std::chrono::steady_clock::now()<end)std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -16,31 +24,36 @@ static void wait(ZaZamplerProcessor& p){
 int main(int argc,char** argv){
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
-        if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq")) {
+        if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
             ZaZamplerProcessor p;p.prepareToPlay(48000,128);
             std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
-            if(juce::String(argv[1])=="--snapshot-lfo") {
-                for(auto* child:editor->getChildren())if(auto* button=dynamic_cast<juce::TextButton*>(child))
-                    if(button->getButtonText()=="LFO ROUTING")button->onClick();
-            }
-            if(juce::String(argv[1])=="--snapshot-env") {
-                for(auto* child:editor->getChildren())if(auto* button=dynamic_cast<juce::TextButton*>(child))
-                    if(button->getButtonText()=="ENV ROUTING")button->onClick();
-            }
-            if(juce::String(argv[1])=="--snapshot-fx") {
-                for(auto* child:editor->getChildren())if(auto* button=dynamic_cast<juce::TextButton*>(child))
-                    if(button->getButtonText()=="EFFECTS")button->onClick();
-            }
-            if(juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq") {
-                const auto title=juce::String(argv[1])=="--snapshot-matrix"?"MATRIX":"SEQUENCE";
-                for(auto* child:editor->getChildren())if(auto* button=dynamic_cast<juce::TextButton*>(child))if(button->getButtonText()==title)button->onClick();
-            }
+            const juce::String mode(argv[1]);
+            const auto title=mode=="--snapshot-lfo"?"LFO ROUTING":mode=="--snapshot-env"?"ENV ROUTING":mode=="--snapshot-fx"?"EFFECTS":mode=="--snapshot-matrix"?"MATRIX":mode=="--snapshot-seq"?"SEQUENCE":"MAIN";
+            auto* button=findButton(*editor,title);check(button!=nullptr,"snapshot page button");button->onClick();
+            if(mode=="--snapshot-small")editor->setSize(660,456);
+            if(mode=="--snapshot-large")editor->setSize(1650,1140);
+            if(mode=="--snapshot-wide")editor->setSize(1500,760);
             auto snapshot=editor->createComponentSnapshot(editor->getLocalBounds());
             juce::File file(argv[2]);juce::FileOutputStream output(file);
             check(output.openedOk(),"snapshot output");
             check(output.setPosition(0) && output.truncate().wasOk(),"snapshot truncate");juce::PNGImageFormat png;
             check(png.writeImageToStream(snapshot,output),"snapshot encode");
             std::cout<<"PASS: native editor snapshot\n";return 0;
+        }
+        {
+            ZaZamplerProcessor p;
+            std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+            check(editor->isResizable(),"editor must allow host resizing");
+            auto* canvas=editor->findChildWithID("instrumentCanvas");
+            check(canvas!=nullptr,"instrument canvas exists");
+            for(const auto size:std::array<juce::Point<int>,4>{{{660,456},{1100,760},{1650,1140},{1500,760}}}) {
+                editor->setSize(size.x,size.y);
+                const auto bounds=editor->getLocalArea(canvas,canvas->getLocalBounds());
+                check(editor->getLocalBounds().contains(bounds),"resized panel must stay visible");
+                auto* button=findButton(*editor,"EFFECTS");check(button!=nullptr,"resized effects button");
+                const auto point=editor->getLocalPoint(button,button->getLocalBounds().getCentre());
+                check(editor->getComponentAt(point)==button,"scaled controls must retain mouse hit testing");
+            }
         }
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
