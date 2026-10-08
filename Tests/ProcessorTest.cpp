@@ -3,6 +3,7 @@
 #include "LfoChecks.h"
 #include "EnvelopeChecks.h"
 #include "PerformanceChecks.h"
+#include "RhythmChecks.h"
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
@@ -24,11 +25,11 @@ static void wait(ZaZamplerProcessor& p){
 int main(int argc,char** argv){
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
-        if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
+        if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-rhythm" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
             ZaZamplerProcessor p;p.prepareToPlay(48000,128);
             std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
             const juce::String mode(argv[1]);
-            const auto title=mode=="--snapshot-lfo"?"LFO ROUTING":mode=="--snapshot-env"?"ENV ROUTING":mode=="--snapshot-fx"?"EFFECTS":mode=="--snapshot-matrix"?"MATRIX":mode=="--snapshot-seq"?"SEQUENCE":"MAIN";
+            const auto title=mode=="--snapshot-rhythm"?"RHYTHM":mode=="--snapshot-lfo"?"LFO ROUTING":mode=="--snapshot-env"?"ENV ROUTING":mode=="--snapshot-fx"?"EFFECTS":mode=="--snapshot-matrix"?"MATRIX":mode=="--snapshot-seq"?"SEQUENCE":"MAIN";
             auto* button=findButton(*editor,title);check(button!=nullptr,"snapshot page button");button->onClick();
             if(mode=="--snapshot-small")editor->setSize(660,456);
             if(mode=="--snapshot-large")editor->setSize(1650,1140);
@@ -56,6 +57,7 @@ int main(int argc,char** argv){
                 check(editor->getComponentAt(point)==button,"scaled controls must retain mouse hit testing");
             }
         }
+        rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
         bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
@@ -72,8 +74,10 @@ int main(int argc,char** argv){
         set("lfo1Target",3);set("lfo1Depth",0.75f);set("lfo1Rate",2.5f);set("lfo2Sync",1);set("lfo2Division",3);set("lfo3Shape",5);set("lfo3Reset",1);
         set("envAmpEnabled",1);set("envAmpRelease",1.2f);set("envFilterAmount",2);set("envModTarget",3);set("envModDepth",0.4f);
         set("keytrack",1);set("voiceMode",1);set("glide",0.15f);set("matrix1Source",9);set("matrix1Target",6);set("matrix1Depth",0.2f);set("seqNote2",7);set("seqVel3",0);
+        set("seqRhythm",1);set("seqHits",7);set("seqRotation",3);set("seqSwing",62);set("seqNoteOrder",1);
         juce::MemoryBlock state;p.getStateInformation(state);
         ZaZamplerProcessor q;q.prepareToPlay(44100,512);q.setNonRealtime(true);q.setStateInformation(state.getData(),static_cast<int>(state.getSize()));wait(q);
+        check(q.parameters.getRawParameterValue("seqHits")->load()==7 && q.parameters.getRawParameterValue("seqRhythm")->load()==1 && q.parameters.getRawParameterValue("seqRotation")->load()==3 && q.parameters.getRawParameterValue("seqSwing")->load()==62 && q.parameters.getRawParameterValue("seqNoteOrder")->load()==1,"rhythm state recall");
         check(q.parameters.getRawParameterValue("voiceMode")->load()==1 && std::abs(q.parameters.getRawParameterValue("glide")->load()-0.15f)<0.0001f && q.parameters.getRawParameterValue("keytrack")->load()==1,"performance state recall");
         check(q.parameters.getRawParameterValue("matrix1Target")->load()==6 && q.parameters.getRawParameterValue("seqNote2")->load()==7 && q.parameters.getRawParameterValue("seqVel3")->load()==0,"matrix and sequence state recall");
         check(q.parameters.getRawParameterValue("envAmpEnabled")->load()>0.5f && std::abs(q.parameters.getRawParameterValue("envAmpRelease")->load()-1.2f)<0.001f && q.parameters.getRawParameterValue("envModTarget")->load()>2.9f,"envelope state restore");
@@ -100,6 +104,7 @@ int main(int argc,char** argv){
         check(std::abs(q.parameters.getRawParameterValue("lfo1Target")->load())<0.001f && std::abs(q.parameters.getRawParameterValue("lfo1Depth")->load())<0.001f,"legacy state must disable new LFOs");
         check(q.parameters.getRawParameterValue("envAmpEnabled")->load()<0.5f && std::abs(q.parameters.getRawParameterValue("envFilterAmount")->load())<0.001f,"legacy envelope bypass");
         check(q.parameters.getRawParameterValue("voiceMode")->load()==0 && q.parameters.getRawParameterValue("seqMode")->load()==0 && q.parameters.getRawParameterValue("matrix1Depth")->load()==0,"legacy performance defaults");
+        check(q.parameters.getRawParameterValue("seqRhythm")->load()==0 && q.parameters.getRawParameterValue("seqNoteOrder")->load()==0,"legacy rhythm defaults");
         // No explicit wait: offline render synchronizes with asynchronous load.
         q.load(root,{},"Sine.sfz");midi.addEvent(juce::MidiMessage::noteOn(1,69,(juce::uint8)100),0);q.processBlock(b,midi);
         check(q.isReady() && b.getMagnitude(0,0,1024)>0.001f,"offline immediate load/render must not be silent");

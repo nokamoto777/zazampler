@@ -35,6 +35,17 @@ public:
     int latest() const {int key=-1;for(int i=0;i<128;++i)if(held(i) && (key<0 || order[i]>order[key]))key=i;return key;}
     int velocity(int key) const{return velocities[key];}
     int count() const {int result=0;for(int i=0;i<128;++i)if(held(i))++result;return result;}
+    int nthPlayed(int index) const {
+        uint64_t previous=0;
+        for(int rank=0;rank<=index;++rank) {
+            int found=-1;
+            for(int k=0;k<128;++k)if(held(k) && order[k]>previous && (found<0 || order[k]<order[found]))found=k;
+            if(found<0)return -1;
+            if(rank==index)return found;
+            previous=order[found];
+        }
+        return -1;
+    }
     int nth(int index) const {for(int i=0;i<128;++i)if(held(i) && index--==0)return i;return -1;}
 private:
     std::array<uint16_t,128> counts{};
@@ -46,14 +57,23 @@ private:
 
 struct SequenceSettings {
     int mode=0,division=2,length=8,octaves=1; // Off, Up, Down, Step
-    float gate=0.7f;
+    int rhythm=0,hits=5,rotation=0,noteOrder=0;
+    float swing=0.f,gate=0.7f;
     std::array<int,8> notes {0,0,7,0,12,7,3,7};
     std::array<float,8> velocities {1,1,1,1,1,1,1,1};
 };
 class NoteSequence {
 public:
     void prepare(double sr){rate=sr;reset();}
-    void reset(){keys.reset();remaining=gateRemaining=0;step=0;sounding=-1;active=false;}
+    void reset(){keys.reset();remaining=gateRemaining=0;step=0;noteStep=0;sounding=-1;active=false;lastRhythm=0;}
+    static bool rhythmHit(int position,int hits,int rotation) {
+        const int slot=((position-std::clamp(rotation,0,15))%16+16)%16;
+        return (slot*std::clamp(hits,1,16))%16<std::clamp(hits,1,16);
+    }
+    static double gridDuration(const SequenceSettings& p,double sr,float bpm,int position) {
+        const double beat=sr*60./std::clamp(std::isfinite(bpm)?static_cast<double>(bpm):120.,20.,400.);
+        return beat*0.25*(1.+(position%2 ? -1.:1.)*std::clamp(static_cast<double>(p.swing),0.,0.5));
+    }
     static double period(const SequenceSettings& p,double sr,float bpm) {
         static constexpr double beats[]={0.125,0.25,0.5,1./3.,0.75,1.,1.5,2.};
         return sr*60./std::clamp(std::isfinite(bpm)?static_cast<double>(bpm):120.,20.,400.)*beats[std::clamp(p.division,0,7)];
@@ -64,34 +84,47 @@ public:
         const int type=n?d[0]&0xf0:0;
         // The sequencer owns note duration and sustain. Other expression is passed through.
         if(type!=0x80 && type!=0x90 && !(n>=3 && type==0xb0 && d[1]==64))emit(d,n);
-        if(n>=3 && type==0xb0 && d[1]==120){sounding=-1;active=false;remaining=0;step=0;}
+        if(n>=3 && type==0xb0 && d[1]==120){sounding=-1;active=false;remaining=0;step=0;noteStep=0;}
     }
     template<class Emit> void tick(const SequenceSettings& p,float bpm,Emit&& emit) {
         if(!p.mode)return;
         auto off=[&]{if(sounding>=0){unsigned char d[]={0x80,static_cast<unsigned char>(sounding),0};emit(d,3);sounding=-1;}};
-        if(!keys.count()){off();active=false;remaining=0;step=0;return;}
-        if(!active){active=true;remaining=0;step=0;}
+        if(p.rhythm!=lastRhythm){off();active=false;remaining=0;step=0;noteStep=0;lastRhythm=p.rhythm;}
+        if(!keys.count()){off();active=false;remaining=0;step=0;noteStep=0;return;}
+        if(!active){active=true;remaining=0;step=0;noteStep=0;}
         if(sounding>=0 && gateRemaining<=0)off();
         if(remaining<=0) {
-            off();
-            const auto duration=period(p,rate,bpm);
-            const int length=std::clamp(p.length,1,8),slot=step%length;
-            int key=keys.latest();
-            if(p.mode==3)key+=p.notes[slot];
-            else {
-                const int count=keys.count(),total=count*std::clamp(p.octaves,1,3);
-                int index=step%total;if(p.mode==2)index=total-1-index;
-                key=keys.nth(index%count)+12*(index/count);
+            const bool euclidean=p.rhythm!=0;
+            const auto duration=euclidean?gridDuration(p,rate,bpm,step):period(p,rate,bpm);
+            const bool hit=!euclidean || rhythmHit(step,p.hits,p.rotation);
+            if(hit) {
+                off();
+                const auto indexStep=euclidean?noteStep:static_cast<uint64_t>(step);
+                const int length=std::clamp(p.length,1,8),slot=static_cast<int>(indexStep%static_cast<unsigned>(length));
+                int key=keys.latest();
+                if(p.mode==3)key+=p.notes[slot];
+                else {
+                    const int count=keys.count(),total=count*std::clamp(p.octaves,1,3);
+                    int index=static_cast<int>(indexStep%static_cast<unsigned>(total));
+                    if(!p.noteOrder && p.mode==2)index=total-1-index;
+                    key=(p.noteOrder?keys.nthPlayed(index%count):keys.nth(index%count))+12*(index/count);
+                }
+                const int velocity=static_cast<int>(std::round(keys.velocity(keys.latest())*std::clamp(p.velocities[slot],0.f,1.f)));
+                if(key>=0 && key<=127 && velocity>0){unsigned char d[]={0x90,static_cast<unsigned char>(key),static_cast<unsigned char>(std::clamp(velocity,1,127))};emit(d,3);sounding=key;}
+                double gap=duration;
+                if(euclidean)for(int offset=1;offset<16 && !rhythmHit(step+offset,p.hits,p.rotation);++offset)
+                    gap+=gridDuration(p,rate,bpm,step+offset);
+                gateRemaining=std::max(1.,gap*std::clamp(p.gate,0.05f,0.95f));
+                ++noteStep;
             }
-            const int velocity=static_cast<int>(std::round(keys.velocity(keys.latest())*std::clamp(p.velocities[slot],0.f,1.f)));
-            if(key>=0 && key<=127 && velocity>0){unsigned char d[]={0x90,static_cast<unsigned char>(key),static_cast<unsigned char>(std::clamp(velocity,1,127))};emit(d,3);sounding=key;}
-            gateRemaining=std::max(1.,duration*std::clamp(p.gate,0.05f,0.95f));
-            remaining+=duration;++step;if(step>=1000000)step=0;
+            remaining+=duration;
+            if(euclidean)step=(step+1)%16;
+            else if(++step>=1000000)step=0;
         }
         --remaining;--gateRemaining;
     }
 private:
-    NoteStack keys;double rate=44100,remaining=0,gateRemaining=0;int step=0,sounding=-1;bool active=false;
+    NoteStack keys;double rate=44100,remaining=0,gateRemaining=0;int step=0,sounding=-1,lastRhythm=0;uint64_t noteStep=0;bool active=false;
 };
 class MonoGlide {
 public:

@@ -40,7 +40,7 @@ jobs:
           bash scripts/build-macos.sh 2>&1 | tee ci-logs/build-macos.log
       - name: Render resized editor previews
         run: |
-          for size in small large wide; do
+          for size in small large wide rhythm; do
             build-macos/Release/processor_test "--snapshot-$size" "$PWD/ci-logs/editor-$size.png"
           done
       - name: Package binary bundles
