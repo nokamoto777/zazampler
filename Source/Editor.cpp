@@ -45,7 +45,7 @@ public:
 };
 PanelControl& ZaZamplerEditor::knob(const char* id,const char* title,int x,int y,int w,int h,bool fx,bool routing,bool envRouting,int extra) {
     auto c=std::make_unique<PanelControl>(processor.parameters,id,title);
-    auto& parent=extra==3?matrixPanel:extra==4?sequencePanel:envRouting?envRoutingPanel:routing?routingPanel:(fx?fxPanel:static_cast<juce::Component&>(*this));
+    auto& parent=extra==3?matrixPanel:extra==4?sequencePanel:envRouting?envRoutingPanel:routing?routingPanel:(fx?fxPanel:static_cast<juce::Component&>(canvas));
     parent.addAndMakeVisible(*c);c->setBounds(x,y,w,h);
     if(routing || envRouting || extra)c->label.setColour(juce::Label::textColourId,juce::Colour(0xff244758));
     auto& result=*c;controls.push_back(std::move(c));return result;
@@ -53,7 +53,9 @@ PanelControl& ZaZamplerEditor::knob(const char* id,const char* title,int x,int y
 ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     : AudioProcessorEditor(p),processor(p),keyboard(p.keyboard,juce::MidiKeyboardComponent::horizontalKeyboard) {
     setLookAndFeel(&look);
-    for(auto* c:std::initializer_list<juce::Component*>{&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel})addAndMakeVisible(c);
+    addAndMakeVisible(canvas);
+    canvas.setComponentID("instrumentCanvas");
+    for(auto* c:std::initializer_list<juce::Component*>{&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel})canvas.addAndMakeVisible(c);
     // Main-panel locations follow the familiar Zampler arrangement.
     knob("cutoff","Cutoff",800,48,72,78);knob("resonance","Reso",872,48,66,78);
     knob("envFilterAmount","Env / oct",938,48,64,78);knob("keytrack","KTrack",1002,48,64,78);
@@ -131,17 +133,19 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     status.setFont(juce::FontOptions(12.f));status.setColour(juce::Label::textColourId,juce::Colour(0xffaabcc5));
     patchInfo.setFont(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(),13.f,juce::Font::plain));patchInfo.setColour(juce::Label::textColourId,juce::Colour(0xff244758));
     patchInfo.setJustificationType(juce::Justification::topLeft);
+    setResizable(true,true);
+    setResizeLimits(660,456,2200,1520);
     setSize(1100,760);bottomPage(false);centrePage(false);timerCallback();startTimerHz(10);
 }
 ZaZamplerEditor::~ZaZamplerEditor() {stopTimer();setLookAndFeel(nullptr);}
 void ZaZamplerEditor::bottomPage(bool effects) {
     showEffects=effects;fxPanel.setVisible(effects);keyboard.setVisible(!effects);
-    effectsButton.setToggleState(effects,juce::dontSendNotification);keysButton.setToggleState(!effects,juce::dontSendNotification);repaint();
+    effectsButton.setToggleState(effects,juce::dontSendNotification);keysButton.setToggleState(!effects,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::centrePage(int page) {
     centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixPanel.setVisible(page==3);sequencePanel.setVisible(page==4);
     for(auto* c:std::initializer_list<juce::Component*>{&bankButton,&folderButton,&sfzButton,&previous,&patches,&next,&patchInfo,&approximateFx,&detailsButton})c->setVisible(!routing);
-    mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);repaint();
+    mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::movePreset(int direction) {
     const int count=patches.getNumItems();if(count==0)return;
@@ -215,9 +219,12 @@ void ZaZamplerEditor::timerCallback() {
             info+="\n\n"+juce::String::fromUTF8(patch.comment.c_str())+"\n\nSFZ  "+juce::String::fromUTF8(patch.sampleFile.c_str());
         } else info+="\n\nSelect a bank preset and its sample folder.";
     } else info="SFZ INSTRUMENT\n\nLoad a bank or choose a folder containing\nSFZ instruments and their samples.";
-    patchInfo.setText(info,juce::dontSendNotification);repaint(990,727,85,12);if(showEffects)repaint(24,532,1052,24);
+    patchInfo.setText(info,juce::dontSendNotification);canvas.repaint(990,727,85,12);if(showEffects)canvas.repaint(24,532,1052,24);
 }
 void ZaZamplerEditor::paint(juce::Graphics& g) {
+    g.fillAll(juce::Colour(0xff181818));
+}
+void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
     g.setGradientFill(juce::ColourGradient(juce::Colour(0xff383838),0,0,juce::Colour(0xff222222),0,760,false));g.fillAll();
     auto text=[&](const juce::String& s,int x,int y,int w,int h,float size,juce::Colour colour=juce::Colour(0xffc9c9c9)){
         g.setColour(colour);g.setFont(juce::FontOptions(size,juce::Font::bold));g.drawText(s,x,y,w,h,juce::Justification::centredLeft);
@@ -287,6 +294,11 @@ void ZaZamplerEditor::paint(juce::Graphics& g) {
     for(auto p:{juce::Point<int>(12,12),{1088,12},{12,748},{1088,748}}){g.setColour(juce::Colour(0xff161c20));g.fillEllipse(static_cast<float>(p.x-3),static_cast<float>(p.y-3),6,6);g.setColour(juce::Colour(0xff67737b));g.drawLine(static_cast<float>(p.x-2),static_cast<float>(p.y),static_cast<float>(p.x+2),static_cast<float>(p.y),1);}
 }
 void ZaZamplerEditor::resized() {
+    constexpr float designWidth=1100.f,designHeight=760.f;
+    const float scale=std::min(getWidth()/designWidth,getHeight()/designHeight);
+    canvas.setBounds(0,0,1100,760);
+    canvas.setTransform(juce::AffineTransform::scale(scale).translated(
+        (getWidth()-designWidth*scale)*0.5f,(getHeight()-designHeight*scale)*0.5f));
     mainButton.setBounds(288,184,59,26);lfoButton.setBounds(351,184,104,26);envButton.setBounds(459,184,104,26);matrixButton.setBounds(567,184,86,26);sequenceButton.setBounds(657,184,94,26);
     routingPanel.setBounds(287,221,461,251);envRoutingPanel.setBounds(287,221,461,251);matrixPanel.setBounds(287,221,461,251);sequencePanel.setBounds(287,221,461,251);
     bankButton.setBounds(289,221,144,26);folderButton.setBounds(442,221,147,26);sfzButton.setBounds(598,221,150,26);

@@ -9,7 +9,14 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
 private:
+    struct Canvas final : juce::Component {
+        explicit Canvas(ZaZamplerEditor& e) : owner(e) {}
+        void paint(juce::Graphics& g) override { owner.paintPanel(g); }
+        ZaZamplerEditor& owner;
+    };
+    void paintPanel(juce::Graphics&);
     InstrumentLook look;
+    Canvas canvas {*this};
     juce::TooltipWindow tooltips {this,700};
     ZaZamplerProcessor& processor;
     juce::TextButton folderButton {"SAMPLE FOLDER"}, panicButton {"PANIC"},bankButton {"LOAD BANK / FXP"},sfzButton {"SFZ MODE"},detailsButton {"IMPORT DETAILS"};

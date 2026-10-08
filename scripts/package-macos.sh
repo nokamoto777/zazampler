@@ -18,7 +18,7 @@ for relative in 'VST3/ZaZampler.vst3' 'AU/ZaZampler.component' 'Standalone/ZaZam
 done
 ditto Demo "$package/Demo"
 ditto docs "$package/docs"
-cp LICENSE README.md "$package/"
+cp LICENSE README.md CHANGES.md "$package/"
 cp scripts/install-macos.sh scripts/validate-macos.sh "$package/scripts/"
 cat > "$package/INSTALL.txt" <<'TEXT'
 ZaZampler macOS arm64 — development build (ad-hoc signed, not notarized)
