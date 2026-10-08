@@ -117,7 +117,30 @@ DestinationはCutoff（5オクターブ）、Volume（12 dB）、Pan、Resonance
 ![Matrix](docs/ZaZampler-Matrix.png)
 ![Sequence](docs/ZaZampler-Sequence.png)
 
-シーケンサーは最初のノートを起点とするテンポ同期です。DAWのPPQ位置へのロック、スイング、ラッチ、外部MIDI出力、本家FXB内のシーケンサー取り込みは含みません。音源として内部のSFZへMIDIを送ります。
+シーケンサーは最初のノートを起点とするテンポ同期です。DAWのPPQ位置へのロック、ラッチ、外部MIDI出力、本家FXB内のシーケンサー取り込みは含みません。音源として内部のSFZへMIDIを送ります。
+
+## リズム付きアルペジエーター
+
+**RHYTHM** タブで **Mode = Arp Up**、**Rhythm = Euclidean** にして鍵盤を押します。
+**Hits / 16** を3・5・7などにすると、16ステップ（16分音符×16＝4拍）内へ発音をなるべく均等に配置します。
+奇数でも周期は4拍のままです。これはFigureのRhythm操作から着想した独自実装で、Figureの16種類のプリセットや内部処理を再現したものではありません。
+
+| 操作 | 動作 |
+|---|---|
+| Hits / 16 | 1～16回の発音を配置。画面の点で位置を確認 |
+| Rotate | パターンを0～15ステップ後ろへ移動 |
+| Shuffle / % | 50%で均等、75%まで16分音符をスウィング。周期の長さは維持 |
+| Gate | 次の発音位置までの時間に対する音の長さ。0.05～0.95 |
+| Note order | Up / Down modeはModeの昇順・降順、Played orderは鍵を押した順 |
+
+例えばC・E・Gを押し、Hits=5にすると1周期に5回発音し、次の周期でも音順を続けます。
+Note orderとSEQUENCEのOctavesはアルペジオで使用します。8-stepモードでは設定した音程列を使用し、リズムの発音位置で次のステップへ進みます。
+SEQUENCEのLength／Velocity列も使用するため、Velocity=0のスロットは休符になります。
+EuclideanではDivisionを使わず16分音符に固定。Straightへ戻すと従来のDivisionによる等間隔再生になります。
+
+最後の鍵（サステインを含む）を離すと停止し、次に押した鍵から周期を再開します。
+ホストBPMには同期しますが、DAWの小節頭／PPQへの位置同期やFigureのTiesは含みません。
+リズム設定はDAW保存・オートメーションに対応し、旧状態ではStraightを選びます。元のseqModeの選択肢と値域は変更していません。
 
 ## エンベロープ
 

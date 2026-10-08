@@ -112,6 +112,11 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         {"seqVel7","Step 7 velocity (0 = rest)",8,0,1,1,1,{}}
 ,        {"seqNote8","Step 8 semitones",8,-24,24,7,1,{}},
         {"seqVel8","Step 8 velocity (0 = rest)",8,0,1,1,1,{}}
+        ,{"seqRhythm","Rhythm engine",9,0,1,0,1,{"Straight","Euclidean"}},
+        {"seqHits","Rhythm hits per 16 steps",9,1,16,5,1,{}},
+        {"seqRotation","Rhythm rotation",9,0,15,0,1,{}},
+        {"seqSwing","Rhythm shuffle (%)",9,50,75,50,1,{}},
+        {"seqNoteOrder","Arpeggiator note order",9,0,1,0,1,{"Up / Down mode","Played order"}}
     };return specs;
 }
 juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
@@ -119,7 +124,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
     for(const auto& s:parameterSpecs()) {
         const juce::ParameterID id{s.id,1};
         if(!s.choices.isEmpty())result.add(std::make_unique<juce::AudioParameterChoice>(id,s.name,s.choices,static_cast<int>(s.initial)));
-        else if(juce::String(s.id)=="channel" || juce::String(s.id)=="seqLength" || juce::String(s.id)=="seqOctaves" || juce::String(s.id).startsWith("seqNote"))result.add(std::make_unique<juce::AudioParameterInt>(id,s.name,static_cast<int>(s.low),static_cast<int>(s.high),static_cast<int>(s.initial)));
+        else if(juce::String(s.id)=="channel" || juce::String(s.id)=="seqHits" || juce::String(s.id)=="seqRotation" || juce::String(s.id)=="seqLength" || juce::String(s.id)=="seqOctaves" || juce::String(s.id).startsWith("seqNote"))result.add(std::make_unique<juce::AudioParameterInt>(id,s.name,static_cast<int>(s.low),static_cast<int>(s.high),static_cast<int>(s.initial)));
         else result.add(std::make_unique<juce::AudioParameterFloat>(id,s.name,juce::NormalisableRange<float>(s.low,s.high,0.f,s.skew),s.initial));
     }return result;
 }
@@ -169,6 +174,7 @@ MatrixSettings readMatrixSettings(juce::AudioProcessorValueTreeState& state) {
 SequenceSettings readSequenceSettings(juce::AudioProcessorValueTreeState& state) {
     SequenceSettings p;auto get=[&](const char* id){return state.getRawParameterValue(id)->load();};
     p.mode=static_cast<int>(get("seqMode"));p.division=static_cast<int>(get("seqDivision"));p.gate=get("seqGate");p.length=static_cast<int>(get("seqLength"));p.octaves=static_cast<int>(get("seqOctaves"));
+    p.rhythm=static_cast<int>(get("seqRhythm"));p.hits=static_cast<int>(get("seqHits"));p.rotation=static_cast<int>(get("seqRotation"));p.swing=(get("seqSwing")-50.f)*0.02f;p.noteOrder=static_cast<int>(get("seqNoteOrder"));
     static const char* notes[]={"seqNote1","seqNote2","seqNote3","seqNote4","seqNote5","seqNote6","seqNote7","seqNote8"};
     static const char* velocities[]={"seqVel1","seqVel2","seqVel3","seqVel4","seqVel5","seqVel6","seqVel7","seqVel8"};
     for(size_t i=0;i<8;++i){p.notes[i]=static_cast<int>(get(notes[i]));p.velocities[i]=get(velocities[i]);}return p;

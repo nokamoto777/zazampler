@@ -45,7 +45,7 @@ public:
 };
 PanelControl& ZaZamplerEditor::knob(const char* id,const char* title,int x,int y,int w,int h,bool fx,bool routing,bool envRouting,int extra) {
     auto c=std::make_unique<PanelControl>(processor.parameters,id,title);
-    auto& parent=extra==3?matrixPanel:extra==4?sequencePanel:envRouting?envRoutingPanel:routing?routingPanel:(fx?fxPanel:static_cast<juce::Component&>(canvas));
+    auto& parent=extra==5?rhythmPanel:extra==3?matrixPanel:extra==4?sequencePanel:envRouting?envRoutingPanel:routing?routingPanel:(fx?fxPanel:static_cast<juce::Component&>(canvas));
     parent.addAndMakeVisible(*c);c->setBounds(x,y,w,h);
     if(routing || envRouting || extra)c->label.setColour(juce::Label::textColourId,juce::Colour(0xff244758));
     auto& result=*c;controls.push_back(std::move(c));return result;
@@ -55,7 +55,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     setLookAndFeel(&look);
     addAndMakeVisible(canvas);
     canvas.setComponentID("instrumentCanvas");
-    for(auto* c:std::initializer_list<juce::Component*>{&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel})canvas.addAndMakeVisible(c);
+    for(auto* c:std::initializer_list<juce::Component*>{&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
     // Main-panel locations follow the familiar Zampler arrangement.
     knob("cutoff","Cutoff",800,48,72,78);knob("resonance","Reso",872,48,66,78);
     knob("envFilterAmount","Env / oct",938,48,64,78);knob("keytrack","KTrack",1002,48,64,78);
@@ -97,6 +97,13 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
         knob(("seqNote"+juce::String(step)).toRawUTF8(),(juce::String(step)+" / st").toRawUTF8(),(step-1)*57,83,56,74,false,false,false,4);
         knob(("seqVel"+juce::String(step)).toRawUTF8(),"Velocity",(step-1)*57,166,56,74,false,false,false,4);
     }
+    knob("seqMode","Mode",0,0,118,50,false,false,false,5);
+    knob("seqRhythm","Rhythm",122,0,129,50,false,false,false,5);
+    knob("seqNoteOrder","Note order",255,0,204,50,false,false,false,5);
+    knob("seqHits","Hits / 16",12,66,90,91,false,false,false,5);
+    knob("seqRotation","Rotate",122,66,90,91,false,false,false,5);
+    knob("seqSwing","Shuffle / %",232,66,90,91,false,false,false,5);
+    knob("seqGate","Gate",342,66,90,91,false,false,false,5);
     // Bottom effects rack: every enabled control is attached to the real parameter.
     knob("drive","Drive",5,23,66,76,true);knob("driveMix","Amount",5,102,66,76,true);
     knob("eq1Hz","Freq",90,25,64,75,true);knob("eq1Q","Q",151,25,56,75,true);knob("eq1Db","Gain",120,103,64,75,true);
@@ -114,7 +121,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     approximateFx.onClick=[this]{if(visibleBank)selectPreset();};
     detailsButton.onClick=[this]{juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon,"Bank import details",processor.importNotes().isNotEmpty()?processor.importNotes():"No bank preset selected.");};
     previous.onClick=[this]{movePreset(-1);};next.onClick=[this]{movePreset(1);};
-    mainButton.onClick=[this]{centrePage(false);};lfoButton.onClick=[this]{centrePage(1);};envButton.onClick=[this]{centrePage(2);};matrixButton.onClick=[this]{centrePage(3);};sequenceButton.onClick=[this]{centrePage(4);};
+    mainButton.onClick=[this]{centrePage(false);};lfoButton.onClick=[this]{centrePage(1);};envButton.onClick=[this]{centrePage(2);};matrixButton.onClick=[this]{centrePage(3);};sequenceButton.onClick=[this]{centrePage(4);};rhythmButton.onClick=[this]{centrePage(5);};
     keysButton.onClick=[this]{bottomPage(false);};effectsButton.onClick=[this]{bottomPage(true);};
     folderButton.onClick=[this]{chooseFolder();};panicButton.onClick=[this]{processor.keyboard.allNotesOff(0);processor.panic();};
     const auto location=processor.libraryLocation();
@@ -143,9 +150,9 @@ void ZaZamplerEditor::bottomPage(bool effects) {
     effectsButton.setToggleState(effects,juce::dontSendNotification);keysButton.setToggleState(!effects,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::centrePage(int page) {
-    centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixPanel.setVisible(page==3);sequencePanel.setVisible(page==4);
+    centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixPanel.setVisible(page==3);sequencePanel.setVisible(page==4);rhythmPanel.setVisible(page==5);
     for(auto* c:std::initializer_list<juce::Component*>{&bankButton,&folderButton,&sfzButton,&previous,&patches,&next,&patchInfo,&approximateFx,&detailsButton})c->setVisible(!routing);
-    mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);canvas.repaint();
+    mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);rhythmButton.setToggleState(page==5,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::movePreset(int direction) {
     const int count=patches.getNumItems();if(count==0)return;
@@ -219,7 +226,7 @@ void ZaZamplerEditor::timerCallback() {
             info+="\n\n"+juce::String::fromUTF8(patch.comment.c_str())+"\n\nSFZ  "+juce::String::fromUTF8(patch.sampleFile.c_str());
         } else info+="\n\nSelect a bank preset and its sample folder.";
     } else info="SFZ INSTRUMENT\n\nLoad a bank or choose a folder containing\nSFZ instruments and their samples.";
-    patchInfo.setText(info,juce::dontSendNotification);canvas.repaint(990,727,85,12);if(showEffects)canvas.repaint(24,532,1052,24);
+    patchInfo.setText(info,juce::dontSendNotification);canvas.repaint(990,727,85,12);if(showEffects)canvas.repaint(24,532,1052,24);if(centrePageIndex==5)canvas.repaint(286,389,467,104);
 }
 void ZaZamplerEditor::paint(juce::Graphics& g) {
     g.fillAll(juce::Colour(0xff181818));
@@ -275,6 +282,16 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
         text("Shared by all voices / sustain pedal supported.",300,455,440,22,11.f,ink);
     } else if(centrePageIndex==3) {
         text("4 GLOBAL ROUTES / PITCH DEPTH 1 = 12 SEMITONES",289,477,462,15,10.f,ink);
+    } else if(centrePageIndex==5) {
+        const auto rhythm=readSequenceSettings(processor.parameters);
+        text("HITS "+juce::String(rhythm.hits)+" / 16 STEPS / 4 BEATS",289,392,462,18,11.f,ink);
+        for(int i=0;i<16;++i) {
+            const int x=294+i*28;
+            g.setColour(NoteSequence::rhythmHit(i,rhythm.hits,rhythm.rotation)?juce::Colour(0xffbc6d13):juce::Colour(0xff658c9f));
+            g.fillEllipse(static_cast<float>(x),421.f,17.f,17.f);
+            text(juce::String(i+1),x,442,24,18,10.f,ink);
+        }
+        text(rhythm.mode==0?"SELECT ARP UP / DOWN OR 8-STEP TO START":rhythm.rhythm==0?"SELECT EUCLIDEAN TO USE THIS RHYTHM":"HOLD KEYS / RELEASE ALL TO RESTART",289,477,462,15,10.f,ink);
     } else {
         text("HOLD KEYS TO RUN / VELOCITY 0 = REST / HOST BPM",289,477,462,15,10.f,ink);
     }
@@ -299,8 +316,8 @@ void ZaZamplerEditor::resized() {
     canvas.setBounds(0,0,1100,760);
     canvas.setTransform(juce::AffineTransform::scale(scale).translated(
         (getWidth()-designWidth*scale)*0.5f,(getHeight()-designHeight*scale)*0.5f));
-    mainButton.setBounds(288,184,59,26);lfoButton.setBounds(351,184,104,26);envButton.setBounds(459,184,104,26);matrixButton.setBounds(567,184,86,26);sequenceButton.setBounds(657,184,94,26);
-    routingPanel.setBounds(287,221,461,251);envRoutingPanel.setBounds(287,221,461,251);matrixPanel.setBounds(287,221,461,251);sequencePanel.setBounds(287,221,461,251);
+    mainButton.setBounds(288,184,48,26);lfoButton.setBounds(340,184,90,26);envButton.setBounds(434,184,90,26);matrixButton.setBounds(528,184,70,26);sequenceButton.setBounds(602,184,76,26);rhythmButton.setBounds(682,184,72,26);
+    routingPanel.setBounds(287,221,461,251);envRoutingPanel.setBounds(287,221,461,251);matrixPanel.setBounds(287,221,461,251);sequencePanel.setBounds(287,221,461,251);rhythmPanel.setBounds(287,221,461,251);
     bankButton.setBounds(289,221,144,26);folderButton.setBounds(442,221,147,26);sfzButton.setBounds(598,221,150,26);
     previous.setBounds(288,274,28,30);patches.setBounds(321,274,395,30);next.setBounds(721,274,28,30);
     patchInfo.setBounds(288,317,460,99);approximateFx.setBounds(286,454,305,29);detailsButton.setBounds(603,455,145,25);

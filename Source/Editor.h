@@ -20,13 +20,13 @@ private:
     juce::TooltipWindow tooltips {this,700};
     ZaZamplerProcessor& processor;
     juce::TextButton folderButton {"SAMPLE FOLDER"}, panicButton {"PANIC"},bankButton {"LOAD BANK / FXP"},sfzButton {"SFZ MODE"},detailsButton {"IMPORT DETAILS"};
-    juce::TextButton previous {"<"},next {">"},keysButton {"KEYBOARD"},effectsButton {"EFFECTS"},mainButton {"MAIN"},lfoButton {"LFO ROUTING"},envButton {"ENV ROUTING"},matrixButton {"MATRIX"},sequenceButton {"SEQUENCE"};
+    juce::TextButton previous {"<"},next {">"},keysButton {"KEYBOARD"},effectsButton {"EFFECTS"},mainButton {"MAIN"},lfoButton {"LFO ROUTING"},envButton {"ENV ROUTING"},matrixButton {"MATRIX"},sequenceButton {"SEQUENCE"},rhythmButton {"RHYTHM"};
     juce::ToggleButton approximateFx {"Approximate bank FX (not identical)"};
     juce::ComboBox patches;
     juce::Label status,patchInfo;
     juce::MidiKeyboardComponent keyboard;
     std::vector<std::unique_ptr<PanelControl>> controls;
-    juce::Component fxPanel,routingPanel,envRoutingPanel,matrixPanel,sequencePanel;
+    juce::Component fxPanel,routingPanel,envRoutingPanel,matrixPanel,sequencePanel,rhythmPanel;
     bool showRouting=false;
     int centrePageIndex=0;
     bool showEffects=false;
