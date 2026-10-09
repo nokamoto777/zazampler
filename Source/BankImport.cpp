@@ -63,7 +63,7 @@ SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,
     auto add=[&](const juce::File& f){if(inside(f) && !exact.contains(f))exact.add(f);};
     // Never follow the bank author's absolute path automatically.
     if(!juce::File::isAbsolutePath(ref) && !ref.contains("../")) {
-        add(bank.getParentDirectory().getChildFile(ref));add(root.getChildFile(ref));
+        add(bank.getParentDirectory().getChildFile(ref));
         add(bank.getParentDirectory().getChildFile(bank.getFileNameWithoutExtension()).getChildFile(ref));
     }
     if(exact.size()==1)return {exact[0],{}};
@@ -79,7 +79,13 @@ SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,
     if(bankDirectory==root || bankDirectory.isAChildOf(root))search(bankDirectory);
     if(matches.size()==1)return {matches[0],{}};
     if(matches.size()>1)return {{},"Multiple files named "+name+" in this bank folder; select a narrower sample folder."};
-    if(bankDirectory!=root)search(root);
+    if(bankDirectory!=root) {
+        if(!juce::File::isAbsolutePath(ref) && !ref.contains("../")) {
+            const auto rootRelative=root.getChildFile(ref);
+            if(inside(rootRelative))return {rootRelative,{}};
+        }
+        search(root);
+    }
     if(matches.size()==1)return {matches[0],{}};
     if(matches.size()>1)return {{},"Multiple files named "+name+"; select the correct library subfolder."};
     return {{},"Missing SFZ: "+name+". Select the folder containing this bank's SFZ files and samples."};

@@ -26,6 +26,9 @@ inline void run(const juce::File& demo,const juce::File& screenshot={}) {
     const auto parsed=ZamplerBank::parse(bytes.data(),bytes.size());
     check(resolveBankSample(parsed.patches[0],bankA,root).file==a.getChildFile("Samples/Sine.sfz"),"bank-local sample wins over other library");
     check(resolveBankSample(parsed.patches[0],bankB,root).file==b.getChildFile("Samples/Sine.sfz"),"second library sample isolation");
+    demo.getChildFile("Sine.sfz").copyFileTo(root.getChildFile("Sine.sfz"));
+    check(resolveBankSample(parsed.patches[0],bankA,root).file==a.getChildFile("Samples/Sine.sfz"),"root-level names cannot shadow bank-local samples");
+    root.getChildFile("Sine.sfz").deleteFile();
     check(p.openBank(bankB).wasOk(),"open second library");p.loadBankPatch(root,{},0,false);wait(p);
     check(p.parameters.getRawParameterValue("gain")->load()==0.f,"new bank preset defaults to unity output");
     // Compare actual rendering at unity vs the previous -6 dB default.
