@@ -17,8 +17,8 @@ inline void run() {
         require(longest-shortest<=1,"rhythm onsets must be maximally even");
     }
     struct Event{int time,key,type;};
-    auto render=[](int block,int hits,int rotation,float swing,int order) {
-        NoteSequence seq;seq.prepare(1000);SequenceSettings p;p.mode=1;p.rhythm=1;p.hits=hits;p.rotation=rotation;p.swing=swing;p.noteOrder=order;p.gate=0.5f;
+    auto render=[](int block,int hits,int rotation,float swing,int order,int engine=1) {
+        NoteSequence seq;seq.prepare(1000);SequenceSettings p;p.mode=1;p.rhythm=engine;p.hits=hits;p.rotation=rotation;p.swing=swing;p.noteOrder=order;p.gate=0.5f;
         std::vector<Event> events;int time=0;
         auto emit=[&](const unsigned char* d,int n){if(n>=3)events.push_back({time,d[1],d[0]&0xf0});};
         for(int key:{67,60,64}){unsigned char on[]={0x90,static_cast<unsigned char>(key),100};seq.midi(on,3,p,emit);}
@@ -33,6 +33,33 @@ inline void run() {
         for(size_t i=0;i<a.size();++i){require(a[i].time==b[i].time && a[i].key==b[i].key && a[i].type==b[i].type,"rhythm block-size timing");if(a[i].type==0x90)++notes;}
         require(notes==hits*2,"odd rhythm must repeat within four beats");
     }
+    // Independent one-based transcription of the requested step maps.
+    const std::vector<std::vector<int>> maps={
+        {1},{1,9},{1,7,13},{1,5,9,13},{1,5,8,11,14},
+        {1,4,6,9,12,14},{1,3,5,7,9,11,13},{1,3,5,7,9,11,13,15},
+        {1,3,5,7,9,11,13,15,16},{1,3,4,6,7,9,10,12,13,15},
+        {1,3,4,6,7,9,10,12,13,15,16},{1,3,4,5,7,8,9,11,12,13,15,16},
+        {1,3,4,5,6,8,9,10,12,13,14,16},{1,3,4,5,6,7,8,9,11,12,13,14,15,16},
+        {1,3,4,5,6,7,8,9,10,11,12,13,14,15,16},{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
+    };
+    for(int pattern=1;pattern<=16;++pattern) {
+        const auto& expected=maps[static_cast<size_t>(pattern-1)];
+        for(int rotation=0;rotation<16;++rotation)for(int i=0;i<16;++i) {
+            const int original=(i-rotation+16)%16+1;
+            require(NoteSequence::fixedPatternHit(i,pattern,rotation)==(std::find(expected.begin(),expected.end(),original)!=expected.end()),"fixed map must match supplied steps under rotation");
+        }
+        for(int block:{128,257}) {
+            const auto events=render(block,pattern,0,0,0,2);std::vector<int> actual,times;
+            for(const auto& e:events)if(e.type==0x90)actual.push_back(e.time);
+            for(int cycle=0;cycle<2;++cycle)for(int step:expected)times.push_back(cycle*2000+(step-1)*125);
+            require(actual==times,"fixed map sample-accurate onsets over two bars");
+        }
+    }
+    const auto fixedThree=render(128,3,0,0,0,2);
+    require(fixedThree[1].type==0x80 && fixedThree[1].time==375,"fixed-map gate spans next hit");
+    const auto fixedShuffle=render(128,16,0,0.5f,0,2);
+    std::vector<int> fixedTimes;for(const auto& e:fixedShuffle)if(e.type==0x90)fixedTimes.push_back(e.time);
+    require(fixedTimes[1]==188 && fixedTimes[16]==2000,"fixed map shuffle preserves bar length");
     auto three=render(128,3,0,0,0);std::vector<int> onsets;
     for(auto e:three)if(e.type==0x90)onsets.push_back(e.time);
     require(onsets==std::vector<int>({0,750,1375,2000,2750,3375}),"3/16 sample-accurate onsets");

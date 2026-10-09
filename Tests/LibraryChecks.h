@@ -30,7 +30,7 @@ inline void run(const juce::File& demo,const juce::File& screenshot={}) {
     check(resolveBankSample(parsed.patches[0],bankA,root).file==a.getChildFile("Samples/Sine.sfz"),"root-level names cannot shadow bank-local samples");
     root.getChildFile("Sine.sfz").deleteFile();
     check(p.openBank(bankB).wasOk(),"open second library");p.loadBankPatch(root,{},0,false);wait(p);
-    check(p.parameters.getRawParameterValue("gain")->load()==0.f,"new bank preset defaults to unity output");
+    check(std::abs(p.parameters.getRawParameterValue("gain")->load())<0.0001f,"new bank preset defaults to unity output");
     // Compare actual rendering at unity vs the previous -6 dB default.
     auto measure=[&](float db) {
         auto* gain=p.parameters.getParameter("gain");gain->setValueNotifyingHost(gain->convertTo0to1(db));
@@ -48,7 +48,7 @@ inline void run(const juce::File& demo,const juce::File& screenshot={}) {
     wait(restored);waitScan(restored.libraries);
     check(restored.libraries.snapshot()->root==root.getFullPathName() && restored.libraries.snapshot()->entries.size()==2,"library root restored and rescanned");
     check(restored.currentBankPath()==bankB.getFullPathName() && restored.selectedBankSlot()==0,"selected library and preset restored");
-    check(restored.parameters.getRawParameterValue("gain")->load()==-6.f,"saved output gain preserved");
+    check(std::abs(restored.parameters.getRawParameterValue("gain")->load()+6.f)<0.0001f,"saved output gain preserved");
     {
         std::unique_ptr<juce::AudioProcessorEditor> editor(restored.createEditor());
         auto* canvas=editor->findChildWithID("instrumentCanvas");check(canvas!=nullptr,"browser canvas");

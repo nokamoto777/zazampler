@@ -72,7 +72,7 @@ inline void processorAudio(const juce::File& root) {
     auto render=[&](int block,bool sequenced) {
         ZaZamplerProcessor p;p.prepareToPlay(48000,block);p.setNonRealtime(true);p.load(root,{},"Sine.sfz");
         auto set=[&](const char* id,float value){auto* param=p.parameters.getParameter(id);param->setValueNotifyingHost(param->convertTo0to1(value));};
-        if(sequenced){set("seqMode",3);set("seqDivision",1);set("seqLength",2);set("seqNote1",0);set("seqNote2",12);set("seqGate",0.5f);}
+        if(sequenced){set("seqRhythm",0);set("seqMode",3);set("seqDivision",1);set("seqLength",2);set("seqNote1",0);set("seqNote2",12);set("seqGate",0.5f);}
         else {set("voiceMode",1);set("glide",0.1f);}
         std::vector<float> output(24000);
         for(int start=0;start<24000;start+=block) {

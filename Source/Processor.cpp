@@ -210,7 +210,7 @@ void ZaZamplerProcessor::getStateInformation(juce::MemoryBlock& dest) {
     tree.setProperty("libraryRoot",catalog->root,nullptr);tree.setProperty("libraryBookmark",catalog->bookmark,nullptr);
     { std::lock_guard<std::mutex> l(stateMutex);
       tree.setProperty("root",request.root,nullptr); tree.setProperty("bookmark",request.bookmark,nullptr);
-      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",7,nullptr);
+      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",8,nullptr);
       tree.setProperty("bankData",bankBase64,nullptr);tree.setProperty("bankPath",bankPath,nullptr);
       tree.setProperty("bankSlot",request.bankSlot,nullptr);tree.setProperty("bankApproximate",request.approximate,nullptr); }
     if (auto xml = tree.createXml()) copyXmlToBinary(*xml,dest);
@@ -225,7 +225,8 @@ void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
         auto child=tree.getChildWithProperty("id",spec.id);
         if(!child.isValid()) {
             child=juce::ValueTree("PARAM");child.setProperty("id",spec.id,nullptr);
-            child.setProperty("value",legacyState && juce::String(spec.id)=="filterMode" ? 7.f : spec.initial,nullptr);
+            const float fallback=juce::String(spec.id)=="seqRhythm" && static_cast<int>(tree.getProperty("schema",1))<8?0.f:spec.initial;
+            child.setProperty("value",legacyState && juce::String(spec.id)=="filterMode" ? 7.f : fallback,nullptr);
             tree.addChild(child,-1,nullptr);
         }
     }

@@ -70,6 +70,33 @@ public:
         const int slot=((position-std::clamp(rotation,0,15))%16+16)%16;
         return (slot*std::clamp(hits,1,16))%16<std::clamp(hits,1,16);
     }
+    // Literal 16-step maps supplied by the user. Pattern 13 intentionally has
+    // 12 hits: preserve the supplied positions rather than inventing a 13th.
+    static bool fixedPatternHit(int position,int pattern,int rotation) {
+        static constexpr const char* maps[]={
+            "1000000000000000", // 1
+            "1000000010000000", // 2
+            "1000001000001000", // 3
+            "1000100010001000", // 4
+            "1000100100100100", // 5
+            "1001010010010100", // 6
+            "1010101010101000", // 7
+            "1010101010101010", // 8
+            "1010101010101011", // 9
+            "1011011011011010", // 10
+            "1011011011011011", // 11
+            "1011101110111011", // 12
+            "1011110111011101", // 13
+            "1011111110111111", // 14
+            "1011111111111111", // 15
+            "1111111111111111", // 16
+        };
+        const int slot=((position-std::clamp(rotation,0,15))%16+16)%16;
+        return maps[std::clamp(pattern,1,16)-1][slot]=='1';
+    }
+    static bool gridHit(int position,const SequenceSettings& p) {
+        return p.rhythm==2?fixedPatternHit(position,p.hits,p.rotation):rhythmHit(position,p.hits,p.rotation);
+    }
     static double gridDuration(const SequenceSettings& p,double sr,float bpm,int position) {
         const double beat=sr*60./std::clamp(std::isfinite(bpm)?static_cast<double>(bpm):120.,20.,400.);
         return beat*0.25*(1.+(position%2 ? -1.:1.)*std::clamp(static_cast<double>(p.swing),0.,0.5));
@@ -94,12 +121,12 @@ public:
         if(!active){active=true;remaining=0;step=0;noteStep=0;}
         if(sounding>=0 && gateRemaining<=0)off();
         if(remaining<=0) {
-            const bool euclidean=p.rhythm!=0;
-            const auto duration=euclidean?gridDuration(p,rate,bpm,step):period(p,rate,bpm);
-            const bool hit=!euclidean || rhythmHit(step,p.hits,p.rotation);
+            const bool patterned=p.rhythm!=0;
+            const auto duration=patterned?gridDuration(p,rate,bpm,step):period(p,rate,bpm);
+            const bool hit=!patterned || gridHit(step,p);
             if(hit) {
                 off();
-                const auto indexStep=euclidean?noteStep:static_cast<uint64_t>(step);
+                const auto indexStep=patterned?noteStep:static_cast<uint64_t>(step);
                 const int length=std::clamp(p.length,1,8),slot=static_cast<int>(indexStep%static_cast<unsigned>(length));
                 int key=keys.latest();
                 if(p.mode==3)key+=p.notes[slot];
@@ -112,13 +139,13 @@ public:
                 const int velocity=static_cast<int>(std::round(keys.velocity(keys.latest())*std::clamp(p.velocities[slot],0.f,1.f)));
                 if(key>=0 && key<=127 && velocity>0){unsigned char d[]={0x90,static_cast<unsigned char>(key),static_cast<unsigned char>(std::clamp(velocity,1,127))};emit(d,3);sounding=key;}
                 double gap=duration;
-                if(euclidean)for(int offset=1;offset<16 && !rhythmHit(step+offset,p.hits,p.rotation);++offset)
+                if(patterned)for(int offset=1;offset<16 && !gridHit(step+offset,p);++offset)
                     gap+=gridDuration(p,rate,bpm,step+offset);
                 gateRemaining=std::max(1.,gap*std::clamp(p.gate,0.05f,0.95f));
                 ++noteStep;
             }
             remaining+=duration;
-            if(euclidean)step=(step+1)%16;
+            if(patterned)step=(step+1)%16;
             else if(++step>=1000000)step=0;
         }
         --remaining;--gateRemaining;

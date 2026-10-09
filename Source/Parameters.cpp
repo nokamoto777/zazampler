@@ -112,8 +112,8 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         {"seqVel7","Step 7 velocity (0 = rest)",8,0,1,1,1,{}}
 ,        {"seqNote8","Step 8 semitones",8,-24,24,7,1,{}},
         {"seqVel8","Step 8 velocity (0 = rest)",8,0,1,1,1,{}}
-        ,{"seqRhythm","Rhythm engine",9,0,1,0,1,{"Straight","Euclidean"}},
-        {"seqHits","Rhythm hits per 16 steps",9,1,16,5,1,{}},
+        ,{"seqRhythm","Rhythm engine",9,0,2,2,1,{"Straight","Euclidean","Fixed maps"}},
+        {"seqHits","Rhythm pattern / Euclidean hits",9,1,16,5,1,{}},
         {"seqRotation","Rhythm rotation",9,0,15,0,1,{}},
         {"seqSwing","Rhythm shuffle (%)",9,50,75,50,1,{}},
         {"seqNoteOrder","Arpeggiator note order",9,0,1,0,1,{"Up / Down mode","Played order"}}

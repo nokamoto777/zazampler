@@ -26,7 +26,7 @@ public:
             if(spec) {
                 sa=std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(state,id,slider);
                 slider.setName(spec->name);slider.setDoubleClickReturnValue(true,spec->initial);
-                const bool integer=juce::String(id)=="channel" || juce::String(id)=="cutoff" || juce::String(id).endsWith("Hz") || juce::String(id).startsWith("seqNote") || juce::String(id)=="seqLength" || juce::String(id)=="seqOctaves";
+                const bool integer=juce::String(id)=="channel" || juce::String(id)=="cutoff" || juce::String(id).endsWith("Hz") || juce::String(id).startsWith("seqNote") || juce::String(id)=="seqHits" || juce::String(id)=="seqRotation" || juce::String(id)=="seqLength" || juce::String(id)=="seqOctaves";
                 slider.textFromValueFunction=[integer](double v){return juce::String(v,integer?0:2);};
                 slider.updateText();
                 slider.setTooltip(juce::String(spec->name)+" | Drag to edit; right-click to enter a value; double-click to reset");
@@ -100,7 +100,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     knob("seqMode","Mode",0,0,118,50,false,false,false,5);
     knob("seqRhythm","Rhythm",122,0,129,50,false,false,false,5);
     knob("seqNoteOrder","Note order",255,0,204,50,false,false,false,5);
-    knob("seqHits","Hits / 16",12,66,90,91,false,false,false,5);
+    knob("seqHits","Pattern / Hits",12,66,90,91,false,false,false,5);
     knob("seqRotation","Rotate",122,66,90,91,false,false,false,5);
     knob("seqSwing","Shuffle / %",232,66,90,91,false,false,false,5);
     knob("seqGate","Gate",342,66,90,91,false,false,false,5);
@@ -349,14 +349,15 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
         text("4 GLOBAL ROUTES / PITCH DEPTH 1 = 12 SEMITONES",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==5) {
         const auto rhythm=readSequenceSettings(processor.parameters);
-        text("HITS "+juce::String(rhythm.hits)+" / 16 STEPS / 4 BEATS",289,392,462,18,11.f,ink);
+        int count=0;for(int i=0;i<16;++i)if(NoteSequence::gridHit(i,rhythm))++count;
+        text((rhythm.rhythm==2?"RHYTHM "+juce::String(rhythm.hits)+" / ":juce::String())+juce::String(count)+" HITS / 16 STEPS / 4 BEATS",289,392,462,18,11.f,ink);
         for(int i=0;i<16;++i) {
             const int x=294+i*28;
-            g.setColour(NoteSequence::rhythmHit(i,rhythm.hits,rhythm.rotation)?juce::Colour(0xffbc6d13):juce::Colour(0xff658c9f));
+            g.setColour(NoteSequence::gridHit(i,rhythm)?juce::Colour(0xffbc6d13):juce::Colour(0xff658c9f));
             g.fillEllipse(static_cast<float>(x),421.f,17.f,17.f);
             text(juce::String(i+1),x,442,24,18,10.f,ink);
         }
-        text(rhythm.mode==0?"SELECT ARP UP / DOWN OR 8-STEP TO START":rhythm.rhythm==0?"SELECT EUCLIDEAN TO USE THIS RHYTHM":"HOLD KEYS / RELEASE ALL TO RESTART",289,477,462,15,10.f,ink);
+        text(rhythm.mode==0?"SELECT ARP UP / DOWN OR 8-STEP TO START":rhythm.rhythm==0?"SELECT FIXED MAPS OR EUCLIDEAN":"HOLD KEYS / RELEASE ALL TO RESTART",289,477,462,15,10.f,ink);
     } else {
         text("HOLD KEYS TO RUN / VELOCITY 0 = REST / HOST BPM",289,477,462,15,10.f,ink);
     }

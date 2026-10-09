@@ -60,6 +60,13 @@ int main(int argc,char** argv){
                 check(editor->getComponentAt(point)==button,"scaled controls must retain mouse hit testing");
             }
         }
+        {
+            ZaZamplerProcessor fresh;check(fresh.parameters.getRawParameterValue("seqRhythm")->load()==2,"new instance selects fixed maps");
+            auto* pattern=fresh.parameters.getParameter("seqHits");pattern->setValueNotifyingHost(pattern->convertTo0to1(13));
+            juce::MemoryBlock saved;fresh.getStateInformation(saved);ZaZamplerProcessor recalled;
+            recalled.setStateInformation(saved.getData(),static_cast<int>(saved.getSize()));
+            check(recalled.parameters.getRawParameterValue("seqRhythm")->load()==2 && recalled.parameters.getRawParameterValue("seqHits")->load()==13,"fixed rhythm state recall");
+        }
         waveformchecks::run();rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
