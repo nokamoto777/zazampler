@@ -171,3 +171,11 @@ Total Test time (real) =   0.65 sec
 DAWを使ったVST3の実演奏テストやGUI描画確認は実施していない。
 この結果をMacのAUv3／VST3動作保証と読み替えないこと。
 Mac上の実行手順は `MAC_ACCEPTANCE.md` に記載。
+
+## ライブラリブラウザ・出力音量
+
+- 2つの子ライブラリ、同名バンク・同名SFZ、拡張子大文字、壊れたバンクを含む合成fixtureで検証。
+- 親フォルダー検出、バンクローカルのSFZ優先、検索、ライブラリ切替、状態復元、SFZモード維持、未接続フォルダー、走査の置き換えをprocessor_stateで検証。
+- 同一SFZ・ノートの実レンダリングで0 dBと−6 dBのRMS比を測定。保存済み−6 dBは復元後も維持。
+- `processor_test --snapshot-browser /absolute/path/to/Demo /absolute/path/to/editor.png` で読み込み済みブラウザを描画。
+- 他音源とのラウドネス一致、実ライブラリ全種類、AUv3でのNAS権限は実機確認が必要。

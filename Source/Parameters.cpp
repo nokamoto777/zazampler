@@ -1,7 +1,7 @@
 #include "Parameters.h"
 const std::vector<ParameterSpec>& parameterSpecs() {
     static const std::vector<ParameterSpec> specs={
-        {"gain","Output (dB)",0,-60,6,-6,1,{}},
+        {"gain","Output (dB)",0,-60,6,0,1,{}},
         {"cutoff","Filter cutoff (Hz)",0,40,20000,20000,0.25f,{}},
         {"reverb","Reverb mix",4,0,1,0,1,{}},
         {"channel","MIDI channel (0 = omni)",0,0,16,1,1,{}},

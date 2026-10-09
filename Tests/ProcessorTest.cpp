@@ -22,9 +22,11 @@ static void wait(ZaZamplerProcessor& p){
     check(!p.isLoading() && p.isReady(),"instrument load timed out or failed");
 }
 #include "BankImportChecks.h"
+#include "LibraryChecks.h"
 int main(int argc,char** argv){
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
+        if(argc==4 && juce::String(argv[1])=="--snapshot-browser") {librarychecks::run(juce::File(argv[2]),juce::File(argv[3]));return 0;}
         if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-rhythm" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
             ZaZamplerProcessor p;p.prepareToPlay(48000,128);
             std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
@@ -60,7 +62,7 @@ int main(int argc,char** argv){
         rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
-        bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
+        librarychecks::run(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
         ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
         juce::MemoryBlock empty;p.getStateInformation(empty);
         p.load(root,{},"Sine.sfz");wait(p);

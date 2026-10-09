@@ -12,8 +12,8 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
     const int modes[]={0,1,5,6,3,2};
     set("filterMode",static_cast<float>(modes[choice(p[126],6)]));
     set("cutoff",juce::jlimit(40.f,20000.f,hz(p[28])));set("resonance",0.707f+9.293f*p[29]);
-    // Keep safe output headroom rather than guessing Zampler's volume taper.
-    result.warnings.add("Approximate FX conversion: unit curves and original DSP are not calibrated. Output stays -6 dB.");
+    // Unity output avoids adding a second fixed attenuation to the SFZ instrument.
+    result.warnings.add("Approximate FX conversion: unit curves and original DSP are not calibrated. Output starts at 0 dB; original volume taper is not imported.");
     if(p[116]>=0.5f) {
         const int type=choice(p[79],7);
         if(type>=5) {set("chorusMix",p[83]);set("chorusRate",0.05f*std::pow(160.f,p[80]));set("chorusDepth",p[84]);}
@@ -69,8 +69,17 @@ SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,
     if(exact.size()==1)return {exact[0],{}};
     if(exact.size()>1)return {{},"Ambiguous SFZ references; select a narrower library folder."};
     juce::Array<juce::File> matches;
-    for(const auto& entry:juce::RangedDirectoryIterator(root,true,"*.sfz",juce::File::findFiles,juce::File::FollowSymlinks::no))
-        if(entry.getFile().getFileName().equalsIgnoreCase(name) && inside(entry.getFile()))matches.add(entry.getFile());
+    auto search=[&](const juce::File& directory) {
+        for(const auto& entry:juce::RangedDirectoryIterator(directory,true,"*",juce::File::findFiles,juce::File::FollowSymlinks::no))
+            if(entry.getFile().getFileName().equalsIgnoreCase(name) && inside(entry.getFile()))matches.add(entry.getFile());
+    };
+    // Banks in a collection often reuse names such as Bass.sfz. Prefer this
+    // bank's own directory before considering other libraries under the root.
+    const auto bankDirectory=bank.getParentDirectory();
+    if(bankDirectory==root || bankDirectory.isAChildOf(root))search(bankDirectory);
+    if(matches.size()==1)return {matches[0],{}};
+    if(matches.size()>1)return {{},"Multiple files named "+name+" in this bank folder; select a narrower sample folder."};
+    if(bankDirectory!=root)search(root);
     if(matches.size()==1)return {matches[0],{}};
     if(matches.size()>1)return {{},"Multiple files named "+name+"; select the correct library subfolder."};
     return {{},"Missing SFZ: "+name+". Select the folder containing this bank's SFZ files and samples."};

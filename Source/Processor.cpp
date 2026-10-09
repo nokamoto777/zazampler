@@ -56,6 +56,8 @@ void ZaZamplerProcessor::clearBank() {
 }
 std::shared_ptr<const ZamplerBank> ZaZamplerProcessor::getBank() const {std::lock_guard<std::mutex> lock(stateMutex);return bankData;}
 std::pair<juce::String,juce::String> ZaZamplerProcessor::libraryLocation() const {std::lock_guard<std::mutex> lock(stateMutex);return {request.root,request.bookmark};}
+juce::String ZaZamplerProcessor::currentBankPath() const {std::lock_guard<std::mutex> lock(stateMutex);return bankPath;}
+juce::String ZaZamplerProcessor::currentInstrumentPath() const {std::lock_guard<std::mutex> lock(stateMutex);return request.root.isNotEmpty() && request.relative.isNotEmpty()?juce::File(request.root).getChildFile(request.relative).getFullPathName():juce::String();}
 juce::String ZaZamplerProcessor::importNotes() const {std::lock_guard<std::mutex> lock(stateMutex);return bankNotes;}
 int ZaZamplerProcessor::selectedBankSlot() const {std::lock_guard<std::mutex> lock(stateMutex);return request.bankSlot;}
 bool ZaZamplerProcessor::bankUsesApproximateFx() const {std::lock_guard<std::mutex> lock(stateMutex);return request.bankSlot<0 || request.approximate;}
@@ -202,9 +204,11 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
 }
 void ZaZamplerProcessor::getStateInformation(juce::MemoryBlock& dest) {
     auto tree = parameters.copyState();
+    const auto catalog=libraries.snapshot();
+    tree.setProperty("libraryRoot",catalog->root,nullptr);tree.setProperty("libraryBookmark",catalog->bookmark,nullptr);
     { std::lock_guard<std::mutex> l(stateMutex);
       tree.setProperty("root",request.root,nullptr); tree.setProperty("bookmark",request.bookmark,nullptr);
-      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",6,nullptr);
+      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",7,nullptr);
       tree.setProperty("bankData",bankBase64,nullptr);tree.setProperty("bankPath",bankPath,nullptr);
       tree.setProperty("bankSlot",request.bankSlot,nullptr);tree.setProperty("bankApproximate",request.approximate,nullptr); }
     if (auto xml = tree.createXml()) copyXmlToBinary(*xml,dest);
@@ -223,6 +227,7 @@ void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
             tree.addChild(child,-1,nullptr);
         }
     }
+    libraries.scan(tree["libraryRoot"].toString(),tree["libraryBookmark"].toString());
     parameters.replaceState(tree);
     clearBank();
     const auto encoded=tree["bankData"].toString();

@@ -55,7 +55,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     setLookAndFeel(&look);
     addAndMakeVisible(canvas);
     canvas.setComponentID("instrumentCanvas");
-    for(auto* c:std::initializer_list<juce::Component*>{&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
+    for(auto* c:std::initializer_list<juce::Component*>{&libraries,&presetSearch,&libraryStatus,&scanButton,&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
     // Main-panel locations follow the familiar Zampler arrangement.
     knob("cutoff","Cutoff",800,48,72,78);knob("resonance","Reso",872,48,66,78);
     knob("envFilterAmount","Env / oct",938,48,64,78);knob("keytrack","KTrack",1002,48,64,78);
@@ -116,6 +116,16 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     knob("delayPingPong","Cross",786,25,57,75,true);
     knob("room","Size",858,25,83,75,true);knob("damping","Damp",944,25,83,75,true);
     knob("reverb","Amount",858,103,83,75,true);knob("width","Width",944,103,83,75,true);
+    libraries.setComponentID("librarySelector");patches.setComponentID("presetSelector");presetSearch.setComponentID("presetSearch");
+    libraries.setTooltip("Banks below LIBRARY FOLDER. Select a bank, then a preset.");
+    libraries.onChange=[this]{selectLibrary();};
+    presetSearch.setColour(juce::TextEditor::backgroundColourId,juce::Colour(0xffb6d8e9));
+    presetSearch.setColour(juce::TextEditor::textColourId,juce::Colour(0xff244758));
+    presetSearch.setTextToShowWhenEmpty("Search preset names...",juce::Colour(0xff547d95));
+    presetSearch.onTextChange=[this]{refreshPresets();};
+    libraryStatus.setFont(juce::FontOptions(10.f));libraryStatus.setColour(juce::Label::textColourId,juce::Colour(0xff244758));
+    scanButton.onClick=[this]{const auto c=processor.libraries.snapshot();processor.libraries.scan(c->root,c->bookmark);};
+    folderButton.setTooltip("Choose Zampler Sound Libraries: discover all FXB / FXP banks recursively.");
     patches.setTextWhenNothingSelected("Select an instrument");patches.onChange=[this]{selectPreset();};
     bankButton.onClick=[this]{chooseBank();};sfzButton.onClick=[this]{processor.clearBank();refreshPresets();};
     approximateFx.onClick=[this]{if(visibleBank)selectPreset();};
@@ -126,7 +136,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     folderButton.onClick=[this]{chooseFolder();};panicButton.onClick=[this]{processor.keyboard.allNotesOff(0);processor.panic();};
     const auto location=processor.libraryLocation();
     if(location.first.isNotEmpty())folderAccess=std::make_unique<FolderAccess>(location.first.toStdString(),location.second.toStdString());
-    refreshPresets();
+    refreshLibraries();refreshPresets();
     for(auto* b:{&keysButton,&effectsButton,&panicButton}) {
         b->setColour(juce::TextButton::buttonColourId,juce::Colour(0xff292929));
         b->setColour(juce::TextButton::buttonOnColourId,juce::Colour(0xff3b3b3b));
@@ -151,7 +161,7 @@ void ZaZamplerEditor::bottomPage(bool effects) {
 }
 void ZaZamplerEditor::centrePage(int page) {
     centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixPanel.setVisible(page==3);sequencePanel.setVisible(page==4);rhythmPanel.setVisible(page==5);
-    for(auto* c:std::initializer_list<juce::Component*>{&bankButton,&folderButton,&sfzButton,&previous,&patches,&next,&patchInfo,&approximateFx,&detailsButton})c->setVisible(!routing);
+    for(auto* c:std::initializer_list<juce::Component*>{&libraries,&presetSearch,&libraryStatus,&scanButton,&bankButton,&folderButton,&sfzButton,&previous,&patches,&next,&patchInfo,&approximateFx,&detailsButton})c->setVisible(!routing);
     mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);rhythmButton.setToggleState(page==5,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::movePreset(int direction) {
@@ -159,18 +169,17 @@ void ZaZamplerEditor::movePreset(int direction) {
     const int index=patches.getSelectedItemIndex();patches.setSelectedItemIndex((index+direction+count)%count);
 }
 void ZaZamplerEditor::chooseFolder() {
-    chooser=std::make_unique<juce::FileChooser>("Choose the folder containing SFZ files AND their samples",juce::File(),"",true);
+    chooser=std::make_unique<juce::FileChooser>("Choose Zampler Sound Libraries (banks, SFZ files and samples)",juce::File(),"",true);
     auto safe=juce::Component::SafePointer<ZaZamplerEditor>(this);
     chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectDirectories,[safe](const juce::FileChooser& fc){
         if (!safe) return;
         const auto root=fc.getResult(); if (!root.isDirectory()) return;
         const auto bookmark=FolderAccess::makeBookmark(root.getFullPathName().toStdString());
         safe->folderAccess=std::make_unique<FolderAccess>(root.getFullPathName().toStdString(),bookmark);
-        safe->refreshPresets();
-        if(safe->patches.getNumItems()>0) {
-            if(safe->patches.getSelectedId()==0)safe->patches.setSelectedItemIndex(0,juce::dontSendNotification);
-            safe->selectPreset();
-        }
+        safe->selectAfterScan=true;
+        safe->processor.libraries.scan(root.getFullPathName(),juce::String::fromUTF8(bookmark.c_str()));
+        safe->refreshLibraries();safe->refreshPresets();
+
     });
 }
 void ZaZamplerEditor::chooseBank() {
@@ -181,25 +190,78 @@ void ZaZamplerEditor::chooseBank() {
         const auto result=safe->processor.openBank(fc.getResult());
         if(result.failed()) {juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Cannot open bank",result.getErrorMessage());return;}
         safe->refreshPresets();
-        if(safe->folderAccess && safe->patches.getNumItems()>0)safe->patches.setSelectedItemIndex(0);
+        if(safe->folderAccess && fc.getResult().isAChildOf(juce::File(juce::String::fromUTF8(safe->folderAccess->path.c_str()))) && safe->patches.getNumItems()>0)safe->patches.setSelectedItemIndex(0);
         else juce::MessageManager::callAsync([safe]{if(safe)safe->chooseFolder();});
     });
 }
 void ZaZamplerEditor::refreshPresets() {
+    const auto selectedPath=processor.currentBankPath();
+    libraries.setSelectedId(0,juce::dontSendNotification);
+    if(visibleCatalog)for(size_t i=0;i<visibleCatalog->entries.size();++i)
+        if(visibleCatalog->entries[i].file.getFullPathName()==selectedPath)libraries.setSelectedId(static_cast<int>(i)+1,juce::dontSendNotification);
     visibleBank=processor.getBank();patches.clear(juce::dontSendNotification);files.clear();
     if(visibleBank) {
         approximateFx.setToggleState(processor.bankUsesApproximateFx(),juce::dontSendNotification);
-        for(const auto& p:visibleBank->patches)if(p.hasSample())patches.addItem(juce::String(p.slot+1).paddedLeft('0',3)+"  "+juce::String::fromUTF8(p.name.c_str()),p.slot+1);
+        for(const auto& p:visibleBank->patches)if(p.hasSample() && juce::String::fromUTF8(p.name.c_str()).containsIgnoreCase(presetSearch.getText()))patches.addItem(juce::String(p.slot+1).paddedLeft('0',3)+"  "+juce::String::fromUTF8(p.name.c_str()),p.slot+1);
         const auto selected=processor.selectedBankSlot();if(selected>=0)patches.setSelectedId(selected+1,juce::dontSendNotification);
         patches.setTextWhenNothingSelected(patches.getNumItems()?"Select a bank preset":"This bank has no sample references");
     } else if(folderAccess) {
         const juce::File root(juce::String::fromUTF8(folderAccess->path.c_str()));
-        root.findChildFiles(files,juce::File::findFiles,true,"*.sfz");files.sort();
-        for(int i=0;i<files.size();++i)patches.addItem(files[i].getRelativePathFrom(root),i+1);
+        const auto catalog=processor.libraries.snapshot();
+        if(catalog->root==root.getFullPathName())files=catalog->instruments;
+        else {root.findChildFiles(files,juce::File::findFiles,true,"*.sfz");files.sort();}
+        for(int i=0;i<files.size();++i)if(files[i].getRelativePathFrom(root).containsIgnoreCase(presetSearch.getText()))patches.addItem(files[i].getRelativePathFrom(root),i+1);
+        const auto selectedFile=processor.currentInstrumentPath();
+        for(int i=0;i<files.size();++i)if(files[i].getFullPathName()==selectedFile && patches.indexOfItemId(i+1)>=0)
+            patches.setSelectedId(i+1,juce::dontSendNotification);
         patches.setTextWhenNothingSelected(files.isEmpty()?"No SFZ files in this folder":"Select an SFZ instrument");
     }
+    if(patches.getNumItems()==0 && presetSearch.getText().isNotEmpty())patches.setTextWhenNothingSelected("No matching presets");
     approximateFx.setEnabled(visibleBank!=nullptr);detailsButton.setEnabled(visibleBank!=nullptr);
     previous.setEnabled(patches.getNumItems()>1);next.setEnabled(patches.getNumItems()>1);
+}
+void ZaZamplerEditor::refreshLibraries() {
+    const auto catalog=processor.libraries.snapshot();
+    if(catalog==visibleCatalog)return;
+    visibleCatalog=catalog;libraries.clear(juce::dontSendNotification);
+    const auto currentPath=processor.currentBankPath();
+    for(size_t i=0;i<catalog->entries.size();++i) {
+        const auto& entry=catalog->entries[i];
+        libraries.addItem(entry.name+" ("+juce::String(entry.presets)+")",static_cast<int>(i)+1);
+        if(entry.file.getFullPathName()==currentPath)libraries.setSelectedId(static_cast<int>(i)+1,juce::dontSendNotification);
+    }
+    libraries.setEnabled(!catalog->scanning && !catalog->entries.empty());
+    scanButton.setEnabled(catalog->root.isNotEmpty() && !catalog->scanning);
+    libraries.setTextWhenNothingSelected(catalog->scanning?"Scanning libraries...":catalog->entries.empty()?"Choose LIBRARY FOLDER to find banks":"Select a library...");
+    libraryStatus.setText(catalog->scanning?"Scanning bank metadata...":juce::String(static_cast<int>(catalog->entries.size()))+" banks | "+juce::String(catalog->errors.size())+" errors",juce::dontSendNotification);
+    libraryStatus.setTooltip(catalog->root+"\n"+catalog->errors.joinIntoString("\n"));
+    if(!catalog->scanning && catalog->root.isNotEmpty()) {
+        // Keep the parent scope open for bank browsing and streaming instruments.
+        folderAccess=std::make_unique<FolderAccess>(catalog->root.toStdString(),catalog->bookmark.toStdString());
+        if(selectAfterScan) {
+            selectAfterScan=false;
+            if(libraries.getSelectedId()==0 && !catalog->entries.empty()) {
+                libraries.setSelectedId(1,juce::dontSendNotification);selectLibrary();
+            } else {
+                refreshPresets();
+                if(patches.getNumItems()>0) {
+                    if(patches.getSelectedId()==0)patches.setSelectedItemIndex(0,juce::dontSendNotification);
+                    selectPreset();
+                }
+            }
+        } else refreshPresets();
+    }
+}
+void ZaZamplerEditor::selectLibrary() {
+    const int index=libraries.getSelectedId()-1;
+    if(!visibleCatalog || !juce::isPositiveAndBelow(index,static_cast<int>(visibleCatalog->entries.size())))return;
+    folderAccess=std::make_unique<FolderAccess>(visibleCatalog->root.toStdString(),visibleCatalog->bookmark.toStdString());
+    const auto result=processor.openBank(visibleCatalog->entries[static_cast<size_t>(index)].file);
+    if(result.failed()) {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Cannot open library",result.getErrorMessage());return;
+    }
+    presetSearch.setText({},false);refreshPresets();
+    if(patches.getNumItems()>0) {patches.setSelectedItemIndex(0,juce::dontSendNotification);selectPreset();}
 }
 void ZaZamplerEditor::selectPreset() {
     if(!folderAccess)return;
@@ -210,6 +272,7 @@ void ZaZamplerEditor::selectPreset() {
     else if(juce::isPositiveAndBelow(slot,files.size()))processor.load(root,bookmark,files[slot].getRelativePathFrom(root));
 }
 void ZaZamplerEditor::timerCallback() {
+    refreshLibraries();
     if(visibleBank!=processor.getBank()) {
         const auto location=processor.libraryLocation();
         if(location.first.isNotEmpty())folderAccess=std::make_unique<FolderAccess>(location.first.toStdString(),location.second.toStdString());
@@ -223,9 +286,9 @@ void ZaZamplerEditor::timerCallback() {
         const int slot=processor.selectedBankSlot();
         if(slot>=0 && static_cast<size_t>(slot)<visibleBank->patches.size()) {
             const auto& patch=visibleBank->patches[static_cast<size_t>(slot)];
-            info+="\n\n"+juce::String::fromUTF8(patch.comment.c_str())+"\n\nSFZ  "+juce::String::fromUTF8(patch.sampleFile.c_str());
+            info+="\n"+juce::String::fromUTF8(patch.comment.c_str())+"\nSFZ  "+juce::String::fromUTF8(patch.sampleFile.c_str());
         } else info+="\n\nSelect a bank preset and its sample folder.";
-    } else info="SFZ INSTRUMENT\n\nLoad a bank or choose a folder containing\nSFZ instruments and their samples.";
+    } else info="SFZ INSTRUMENT\nChoose LIBRARY FOLDER, then a library and preset.\nSFZ MODE lists individual SFZ instruments.";
     patchInfo.setText(info,juce::dontSendNotification);canvas.repaint(990,727,85,12);if(showEffects)canvas.repaint(24,532,1052,24);if(centrePageIndex==5)canvas.repaint(286,389,467,104);
 }
 void ZaZamplerEditor::paint(juce::Graphics& g) {
@@ -254,6 +317,7 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
         panel(24,190+i*102,226,100,"LFO "+juce::String(i+1));
 
     }
+    text("MODULATION: set target/depth in LFO ROUTING",26,493,239,11,9.f);
     panel(791,20,285,142,"FILTER");panel(791,169,285,83,"OUTPUT");
     for(int i=0;i<3;++i) {
         const char* names[]={"MOD ENVELOPE","FILTER ENVELOPE","AMP ENVELOPE"};
@@ -268,12 +332,12 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
     const auto ink=juce::Colour(0xff244758);
 
     g.setColour(juce::Colour(0xff547d95));g.drawLine(286,215,753,215,1.f);
-    if(!showRouting)text("PATCH",289,254,95,17,10.f,ink);
+
     if(!showRouting) {
         g.setColour(juce::Colour(0xff6b98b3));g.drawLine(287,420,750,420,1.f);
         text("POLYPHONY  128     /     SFZ SAMPLE ENGINE",289,426,440,19,11.f,ink);
     } else if(centrePageIndex==1) {
-        text("GLOBAL LFOs / BEFORE FX / DEPTH 0 = BYPASS",289,477,462,15,10.f,ink);
+        text("FXB LFOs are not imported. Target Off / Depth 0 = bypass.",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==2) {
         text("AMP: enable On in the AMP ENVELOPE header.",300,352,440,22,12.f,ink);
         text("FILTER: set Env / oct and enable the filter.",300,377,440,22,12.f,ink);
@@ -318,9 +382,10 @@ void ZaZamplerEditor::resized() {
         (getWidth()-designWidth*scale)*0.5f,(getHeight()-designHeight*scale)*0.5f));
     mainButton.setBounds(288,184,48,26);lfoButton.setBounds(340,184,90,26);envButton.setBounds(434,184,90,26);matrixButton.setBounds(528,184,70,26);sequenceButton.setBounds(602,184,76,26);rhythmButton.setBounds(682,184,72,26);
     routingPanel.setBounds(287,221,461,251);envRoutingPanel.setBounds(287,221,461,251);matrixPanel.setBounds(287,221,461,251);sequencePanel.setBounds(287,221,461,251);rhythmPanel.setBounds(287,221,461,251);
-    bankButton.setBounds(289,221,144,26);folderButton.setBounds(442,221,147,26);sfzButton.setBounds(598,221,150,26);
-    previous.setBounds(288,274,28,30);patches.setBounds(321,274,395,30);next.setBounds(721,274,28,30);
-    patchInfo.setBounds(288,317,460,99);approximateFx.setBounds(286,454,305,29);detailsButton.setBounds(603,455,145,25);
+    folderButton.setBounds(289,221,132,26);bankButton.setBounds(425,221,139,26);sfzButton.setBounds(568,221,90,26);scanButton.setBounds(662,221,86,26);
+    libraries.setBounds(289,252,459,26);presetSearch.setBounds(289,283,293,25);libraryStatus.setBounds(585,283,163,25);
+    previous.setBounds(288,314,28,30);patches.setBounds(321,314,395,30);next.setBounds(721,314,28,30);
+    patchInfo.setBounds(288,350,460,68);approximateFx.setBounds(286,454,305,29);detailsButton.setBounds(603,455,145,25);
     keysButton.setBounds(24,505,115,23);effectsButton.setBounds(144,505,115,23);panicButton.setBounds(679,505,94,23);
     fxPanel.setBounds(32,532,1040,183);keyboard.setBounds(40,552,1020,141);status.setBounds(24,721,950,28);
 }
