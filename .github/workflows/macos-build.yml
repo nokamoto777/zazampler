@@ -43,6 +43,7 @@ jobs:
           for size in small large wide rhythm; do
             build-macos/Release/processor_test "--snapshot-$size" "$PWD/ci-logs/editor-$size.png"
           done
+          build-macos/Release/processor_test --snapshot-browser "$PWD/Demo" "$PWD/ci-logs/editor-browser.png"
       - name: Package binary bundles
         run: bash scripts/package-macos.sh
       - name: Upload binaries

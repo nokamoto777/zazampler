@@ -56,6 +56,8 @@ void ZaZamplerProcessor::clearBank() {
 }
 std::shared_ptr<const ZamplerBank> ZaZamplerProcessor::getBank() const {std::lock_guard<std::mutex> lock(stateMutex);return bankData;}
 std::pair<juce::String,juce::String> ZaZamplerProcessor::libraryLocation() const {std::lock_guard<std::mutex> lock(stateMutex);return {request.root,request.bookmark};}
+juce::String ZaZamplerProcessor::currentBankPath() const {std::lock_guard<std::mutex> lock(stateMutex);return bankPath;}
+juce::String ZaZamplerProcessor::currentInstrumentPath() const {std::lock_guard<std::mutex> lock(stateMutex);return request.root.isNotEmpty() && request.relative.isNotEmpty()?juce::File(request.root).getChildFile(request.relative).getFullPathName():juce::String();}
 juce::String ZaZamplerProcessor::importNotes() const {std::lock_guard<std::mutex> lock(stateMutex);return bankNotes;}
 int ZaZamplerProcessor::selectedBankSlot() const {std::lock_guard<std::mutex> lock(stateMutex);return request.bankSlot;}
 bool ZaZamplerProcessor::bankUsesApproximateFx() const {std::lock_guard<std::mutex> lock(stateMutex);return request.bankSlot<0 || request.approximate;}
@@ -153,7 +155,8 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     std::unique_lock<std::mutex> l(engineMutex,std::defer_lock);
     if(isNonRealtime())l.lock();else l.try_lock();
     if (!l.owns_lock() || !instrument || loading.load()) {
-        panicRequested.store(true); midi.clear(); peak.store(0); return;
+        panicRequested.store(true); midi.clear(); peak.store(0);
+        waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);return;
     }
     auto& engine = *instrument->engine;
     if (panicRequested.exchange(false)) { engine.panic(); effects.reset();resetPerformance(); }
@@ -194,6 +197,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
         engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0);
         effects.process(out.getWritePointer(0,start),out.getWritePointer(1,start),n,fx,bpm,{},nullptr,{},nullptr,modulationFrames.data());
     }
+    waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);
     midi.clear();
     const double repeats=fx.delayFeedback>0 ? 1.+std::ceil(std::log(0.0001)/std::log(juce::jlimit(0.0001f,0.95f,fx.delayFeedback))) : 1.;
     const double delayTail=fx.delayMix>0 ? Effects::delayMilliseconds(fx,bpm)*0.001*repeats : 0.;
@@ -202,9 +206,11 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
 }
 void ZaZamplerProcessor::getStateInformation(juce::MemoryBlock& dest) {
     auto tree = parameters.copyState();
+    const auto catalog=libraries.snapshot();
+    tree.setProperty("libraryRoot",catalog->root,nullptr);tree.setProperty("libraryBookmark",catalog->bookmark,nullptr);
     { std::lock_guard<std::mutex> l(stateMutex);
       tree.setProperty("root",request.root,nullptr); tree.setProperty("bookmark",request.bookmark,nullptr);
-      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",6,nullptr);
+      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",8,nullptr);
       tree.setProperty("bankData",bankBase64,nullptr);tree.setProperty("bankPath",bankPath,nullptr);
       tree.setProperty("bankSlot",request.bankSlot,nullptr);tree.setProperty("bankApproximate",request.approximate,nullptr); }
     if (auto xml = tree.createXml()) copyXmlToBinary(*xml,dest);
@@ -219,10 +225,12 @@ void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
         auto child=tree.getChildWithProperty("id",spec.id);
         if(!child.isValid()) {
             child=juce::ValueTree("PARAM");child.setProperty("id",spec.id,nullptr);
-            child.setProperty("value",legacyState && juce::String(spec.id)=="filterMode" ? 7.f : spec.initial,nullptr);
+            const float fallback=juce::String(spec.id)=="seqRhythm" && static_cast<int>(tree.getProperty("schema",1))<8?0.f:spec.initial;
+            child.setProperty("value",legacyState && juce::String(spec.id)=="filterMode" ? 7.f : fallback,nullptr);
             tree.addChild(child,-1,nullptr);
         }
     }
+    libraries.scan(tree["libraryRoot"].toString(),tree["libraryBookmark"].toString());
     parameters.replaceState(tree);
     clearBank();
     const auto encoded=tree["bankData"].toString();

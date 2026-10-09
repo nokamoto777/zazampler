@@ -4,6 +4,8 @@
 #include "Parameters.h"
 #include "BankImport.h"
 #include "FolderAccess.h"
+#include "LibraryCatalog.h"
+#include "WaveformCapture.h"
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -44,6 +46,10 @@ public:
     bool isLoading() const { return loading.load(); }
     bool isReady() const { return ready.load(); }
     void panic() { panicRequested.store(true); }
+    LibraryCatalog libraries;
+    WaveformCapture waveform;
+    juce::String currentBankPath() const;
+    juce::String currentInstrumentPath() const;
     juce::AudioProcessorValueTreeState parameters;
     juce::MidiKeyboardState keyboard;
     std::atomic<float> peak {0};
