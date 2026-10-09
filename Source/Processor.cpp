@@ -155,7 +155,8 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     std::unique_lock<std::mutex> l(engineMutex,std::defer_lock);
     if(isNonRealtime())l.lock();else l.try_lock();
     if (!l.owns_lock() || !instrument || loading.load()) {
-        panicRequested.store(true); midi.clear(); peak.store(0); return;
+        panicRequested.store(true); midi.clear(); peak.store(0);
+        waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);return;
     }
     auto& engine = *instrument->engine;
     if (panicRequested.exchange(false)) { engine.panic(); effects.reset();resetPerformance(); }
@@ -196,6 +197,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
         engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0);
         effects.process(out.getWritePointer(0,start),out.getWritePointer(1,start),n,fx,bpm,{},nullptr,{},nullptr,modulationFrames.data());
     }
+    waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);
     midi.clear();
     const double repeats=fx.delayFeedback>0 ? 1.+std::ceil(std::log(0.0001)/std::log(juce::jlimit(0.0001f,0.95f,fx.delayFeedback))) : 1.;
     const double delayTail=fx.delayMix>0 ? Effects::delayMilliseconds(fx,bpm)*0.001*repeats : 0.;

@@ -23,6 +23,7 @@ static void wait(ZaZamplerProcessor& p){
 }
 #include "BankImportChecks.h"
 #include "LibraryChecks.h"
+#include "WaveformChecks.h"
 int main(int argc,char** argv){
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
@@ -59,7 +60,7 @@ int main(int argc,char** argv){
                 check(editor->getComponentAt(point)==button,"scaled controls must retain mouse hit testing");
             }
         }
-        rhythmchecks::run();
+        waveformchecks::run();rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
         librarychecks::run(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);

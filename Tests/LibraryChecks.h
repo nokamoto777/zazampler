@@ -36,6 +36,9 @@ inline void run(const juce::File& demo,const juce::File& screenshot={}) {
         auto* gain=p.parameters.getParameter("gain");gain->setValueNotifyingHost(gain->convertTo0to1(db));
         p.panic();juce::AudioBuffer<float> audio(2,2048);juce::MidiBuffer midi;
         midi.addEvent(juce::MidiMessage::noteOn(1,69,(juce::uint8)127),0);p.processBlock(audio,midi);
+        std::array<WaveformCapture::Frame,WaveformCapture::capacity> captured {};
+        const auto count=p.waveform.read(captured.data(),WaveformCapture::capacity);
+        check(count>0,"processor publishes output to visualizer");
         return audio.getRMSLevel(0,512,1536);
     };
     const auto unity=measure(0),old=measure(-6);
@@ -69,6 +72,7 @@ inline void run(const juce::File& demo,const juce::File& screenshot={}) {
         check(presets && presets->getText().contains("Library 2"),"SFZ browser restores selected file");
     }
     if(screenshot!=juce::File()) {
+        juce::AudioBuffer<float> audio(2,16384);juce::MidiBuffer midi;p.processBlock(audio,midi);
         std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
         juce::FileOutputStream output(screenshot);check(output.openedOk(),"browser screenshot output");
         check(output.setPosition(0) && output.truncate().wasOk(),"browser screenshot truncate");

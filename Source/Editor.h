@@ -1,6 +1,7 @@
 #pragma once
 #include "Processor.h"
 #include "InstrumentLook.h"
+#include "WaveformDisplay.h"
 class PanelControl;
 class ZaZamplerEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
@@ -30,6 +31,7 @@ private:
     void refreshLibraries();
     void selectLibrary();
     juce::Label status,patchInfo;
+    WaveformDisplay visualizer;
     juce::MidiKeyboardComponent keyboard;
     std::vector<std::unique_ptr<PanelControl>> controls;
     juce::Component fxPanel,routingPanel,envRoutingPanel,matrixPanel,sequencePanel,rhythmPanel;

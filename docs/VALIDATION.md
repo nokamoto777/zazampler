@@ -179,3 +179,8 @@ Mac上の実行手順は `MAC_ACCEPTANCE.md` に記載。
 - 同一SFZ・ノートの実レンダリングで0 dBと−6 dBのRMS比を測定。保存済み−6 dBは復元後も維持。
 - `processor_test --snapshot-browser /absolute/path/to/Demo /absolute/path/to/editor.png` で読み込み済みブラウザを描画。
 - 他音源とのラウドネス一致、実ライブラリ全種類、AUv3でのNAS権限は実機確認が必要。
+
+## Visualizer
+
+- ステレオ逆相信号の最小／最大値、ブロック分割の不変性、FIFO満杯時の破棄と復帰を検証。
+- processorの実出力が波形FIFOへ渡ることを確認。読み込み済みブラウザ画像で波形と鍵盤の配置を検証。
