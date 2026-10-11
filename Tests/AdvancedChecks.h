@@ -82,6 +82,11 @@ inline void rex(const juce::File& temp) {
     const auto rcy=root.getChildFile("legacy.rcy");check(rcy.replaceWithData(legacyData.data(),legacyData.size()),"write RCY metadata");
     {RexImport rex(rcy);check(rex.sfz.existsAsFile(),"legacy RCY PCM import");}
     ZaZamplerProcessor processor;processor.prepareToPlay(48000,128);processor.setNonRealtime(true);processor.load(root,{},"test.rx2");wait(processor);
+    std::unique_ptr<juce::AudioProcessorEditor> editor(processor.createEditor());
+    std::function<juce::MidiKeyboardComponent*(juce::Component&)> findKeyboard=[&](juce::Component& parent)->juce::MidiKeyboardComponent* {
+        for(auto* child:parent.getChildren()){if(auto* keyboard=dynamic_cast<juce::MidiKeyboardComponent*>(child))return keyboard;if(auto* keyboard=findKeyboard(*child))return keyboard;}return nullptr;
+    };
+    auto* keyboard=findKeyboard(*editor);check(keyboard && keyboard->getRangeStart()==0 && keyboard->getRangeEnd()==127 && keyboard->getLowestVisibleKey()==0,"REX slices reachable from on-screen keyboard");
     juce::AudioBuffer<float> out(2,128);juce::MidiBuffer midi;midi.addEvent(juce::MidiMessage::noteOn(1,0,(juce::uint8)100),0);processor.processBlock(out,midi);check(out.getMagnitude(0,128)>0.001f,"processor REX audio");
     juce::MemoryBlock state;processor.getStateInformation(state);ZaZamplerProcessor recalled;recalled.prepareToPlay(48000,128);recalled.setStateInformation(state.getData(),static_cast<int>(state.getSize()));wait(recalled);check(recalled.statusText().contains("REX"),"REX source recall rebuilds cache");
 }

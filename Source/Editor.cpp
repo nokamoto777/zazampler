@@ -185,7 +185,7 @@ void ZaZamplerEditor::movePreset(int direction) {
     const int index=patches.getSelectedItemIndex();patches.setSelectedItemIndex((index+direction+count)%count);
 }
 void ZaZamplerEditor::chooseFolder() {
-    chooser=std::make_unique<juce::FileChooser>("Choose Zampler Sound Libraries (banks, SFZ files and samples)",juce::File(),"",true);
+    chooser=std::make_unique<juce::FileChooser>("Choose Zampler Sound Libraries (banks, SFZ, REX and samples)",juce::File(),"",true);
     auto safe=juce::Component::SafePointer<ZaZamplerEditor>(this);
     chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectDirectories,[safe](const juce::FileChooser& fc){
         if (!safe) return;
@@ -230,7 +230,7 @@ void ZaZamplerEditor::refreshPresets() {
         const auto selectedFile=processor.currentInstrumentPath();
         for(int i=0;i<files.size();++i)if(files[i].getFullPathName()==selectedFile && patches.indexOfItemId(i+1)>=0)
             patches.setSelectedId(i+1,juce::dontSendNotification);
-        patches.setTextWhenNothingSelected(files.isEmpty()?"No SFZ files in this folder":"Select an SFZ instrument");
+        patches.setTextWhenNothingSelected(files.isEmpty()?"No SFZ / REX files in this folder":"Select an SFZ / REX instrument");
     }
     if(patches.getNumItems()==0 && presetSearch.getText().isNotEmpty())patches.setTextWhenNothingSelected("No matching presets");
     approximateFx.setEnabled(visibleBank!=nullptr);detailsButton.setEnabled(visibleBank!=nullptr);
@@ -289,6 +289,9 @@ void ZaZamplerEditor::selectPreset() {
 }
 void ZaZamplerEditor::timerCallback() {
     visualizer.update();
+    const auto instrumentPath=processor.currentInstrumentPath();
+    const bool rex=instrumentPath.endsWithIgnoreCase(".rx2") || instrumentPath.endsWithIgnoreCase(".rex") || instrumentPath.endsWithIgnoreCase(".rcy");
+    if(rex!=showingRex){showingRex=rex;keyboard.setAvailableRange(rex?0:24,rex?127:108);keyboard.setLowestVisibleKey(rex?0:36);}
     refreshLibraries();
     if(visibleBank!=processor.getBank()) {
         const auto location=processor.libraryLocation();
@@ -303,9 +306,9 @@ void ZaZamplerEditor::timerCallback() {
         const int slot=processor.selectedBankSlot();
         if(slot>=0 && static_cast<size_t>(slot)<visibleBank->patches.size()) {
             const auto& patch=visibleBank->patches[static_cast<size_t>(slot)];
-            info+="\n"+juce::String::fromUTF8(patch.comment.c_str())+"\nSFZ  "+juce::String::fromUTF8(patch.sampleFile.c_str());
+            info+="\n"+juce::String::fromUTF8(patch.comment.c_str())+"\nFILE  "+juce::String::fromUTF8(patch.sampleFile.c_str());
         } else info+="\n\nSelect a bank preset and its sample folder.";
-    } else info="SFZ INSTRUMENT\nChoose LIBRARY FOLDER, then a library and preset.\nSFZ MODE lists individual SFZ instruments.";
+    } else info="SFZ / REX INSTRUMENT\nChoose LIBRARY FOLDER, then a library and preset.\nSFZ / REX lists individual sample instruments.";
     patchInfo.setText(info,juce::dontSendNotification);canvas.repaint(990,727,85,12);if(showEffects)canvas.repaint(24,532,1052,24);if(centrePageIndex==5)canvas.repaint(286,389,467,104);
 }
 void ZaZamplerEditor::paint(juce::Graphics& g) {
