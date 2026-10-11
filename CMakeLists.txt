@@ -41,6 +41,9 @@ else()
   set(zazampler_sfizz "${sfizz_SOURCE_DIR}")
 endif()
 include(scripts/patch-sfizz.cmake)
+# The patched voice renderer includes ZaZampler's C++17 modulation headers.
+# sfizz sets its own C++14 default, independently of our parent directory.
+target_compile_features(sfizz_internal PRIVATE cxx_std_17)
 set(ZAZAMPLER_VELOCILOOPS_PATH "" CACHE PATH "Optional pinned VelociLoops checkout")
 set(VELOCILOOPS_ENABLE_SHARED OFF CACHE BOOL "" FORCE)
 set(VELOCILOOPS_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
