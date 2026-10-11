@@ -6,7 +6,7 @@
 
 struct ZamplerPatch {
     std::string name,comment,originalDirectory,sampleFile;
-    std::array<float,128> parameters {};
+    std::array<float,337> parameters {};
     std::vector<uint8_t> opaqueRecord;
     int slot=0;
     bool hasSample() const {return !sampleFile.empty();}

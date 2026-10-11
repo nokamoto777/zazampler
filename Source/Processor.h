@@ -6,6 +6,8 @@
 #include "FolderAccess.h"
 #include "LibraryCatalog.h"
 #include "WaveformCapture.h"
+#include "DiagnosticLog.h"
+#include "RexImport.h"
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -46,6 +48,8 @@ public:
     bool isLoading() const { return loading.load(); }
     bool isReady() const { return ready.load(); }
     void panic() { panicRequested.store(true); }
+    DiagnosticLog log;
+    juce::String debugReport();
     LibraryCatalog libraries;
     WaveformCapture waveform;
     juce::String currentBankPath() const;
@@ -64,7 +68,7 @@ private:
     std::shared_ptr<const ZamplerBank> bankData;
     juce::String bankBase64,bankPath,bankNotes;
     // Destruction order: free streaming synth before closing its directory scope.
-    struct Instrument { std::unique_ptr<FolderAccess> access; std::unique_ptr<Engine> engine; };
+    struct Instrument { std::unique_ptr<RexImport> rex; std::unique_ptr<FolderAccess> access; std::unique_ptr<Engine> engine; };
     std::unique_ptr<Instrument> instrument;
     mutable std::mutex stateMutex;
     std::mutex engineMutex;
@@ -83,8 +87,11 @@ private:
     PerformanceFrame performance;
     std::vector<LfoModulation> modulationFrames;
     std::vector<float> pitchFrames;
+    std::vector<PerformanceFrame> expressionFrames;
+    int lastModScope=0;
+    double expectedPpq=0;bool hadPosition=false;
     int lastSequenceMode=0,lastVoiceMode=0;
-    bool wasPlaying=false;
+    bool wasPlaying=false,loggedUnavailable=false;
     void resetPerformance();
     void loadLoop();
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ZaZamplerProcessor)

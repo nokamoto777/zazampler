@@ -58,7 +58,7 @@ private:
                 else for(const auto& entry:juce::RangedDirectoryIterator(root,true,"*",juce::File::findFiles,juce::File::FollowSymlinks::no)) {
                     if(cancelled(result.revision))break;
                     const auto file=entry.getFile();
-                    if(file.hasFileExtension("sfz"))result.instruments.add(file);
+                    if(file.hasFileExtension("sfz;rex;rx2;rcy"))result.instruments.add(file);
                     if(!file.hasFileExtension("fxb;fxp"))continue;
                     try {
                         if(file.getSize()>4*1024*1024)throw std::runtime_error("Bank exceeds 4 MiB");

@@ -62,7 +62,7 @@ private:
     EnvelopeBank envelopes;
     Smooth ampEnvelopeBlend,filterEnvelopeDepth;
     std::array<Smooth,6> modEnvelopeRoutes;
-    std::array<std::array<Smooth,6>,4> matrixRoutes;
+    std::array<std::array<Smooth,6>,32> matrixRoutes;
     Smooth keytrackAmount;
     bool modulationInitial=true;
     static float read(const std::vector<float>&,size_t write,float delay);

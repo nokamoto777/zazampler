@@ -84,16 +84,16 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         {"seqGate","Sequence gate",8,0.05f,0.95f,0.7f,1,{}},
         {"seqLength","Sequence steps",8,1,8,8,1,{}},
         {"seqOctaves","Arpeggiator octaves",8,1,3,1,1,{}}
-,        {"matrix1Source","Matrix 1 source",7,0,11,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend"}},
+,        {"matrix1Source","Matrix 1 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
         {"matrix1Target","Matrix 1 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
         {"matrix1Depth","Matrix 1 depth",7,-1,1,0,1,{}}
-,        {"matrix2Source","Matrix 2 source",7,0,11,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend"}},
+,        {"matrix2Source","Matrix 2 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
         {"matrix2Target","Matrix 2 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
         {"matrix2Depth","Matrix 2 depth",7,-1,1,0,1,{}}
-,        {"matrix3Source","Matrix 3 source",7,0,11,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend"}},
+,        {"matrix3Source","Matrix 3 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
         {"matrix3Target","Matrix 3 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
         {"matrix3Depth","Matrix 3 depth",7,-1,1,0,1,{}}
-,        {"matrix4Source","Matrix 4 source",7,0,11,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend"}},
+,        {"matrix4Source","Matrix 4 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
         {"matrix4Target","Matrix 4 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
         {"matrix4Depth","Matrix 4 depth",7,-1,1,0,1,{}}
 ,        {"seqNote1","Step 1 semitones",8,-24,24,0,1,{}},
@@ -117,6 +117,101 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         {"seqRotation","Rhythm rotation",9,0,15,0,1,{}},
         {"seqSwing","Rhythm shuffle (%)",9,50,75,50,1,{}},
         {"seqNoteOrder","Arpeggiator note order",9,0,1,0,1,{"Up / Down mode","Played order"}}
+        ,{"matrix5Source","Matrix 5 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix5Target","Matrix 5 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix5Depth","Matrix 5 depth",7,-1,1,0,1,{}},
+        {"matrix6Source","Matrix 6 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix6Target","Matrix 6 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix6Depth","Matrix 6 depth",7,-1,1,0,1,{}},
+        {"matrix7Source","Matrix 7 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix7Target","Matrix 7 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix7Depth","Matrix 7 depth",7,-1,1,0,1,{}},
+        {"matrix8Source","Matrix 8 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix8Target","Matrix 8 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix8Depth","Matrix 8 depth",7,-1,1,0,1,{}},
+        {"matrix9Source","Matrix 9 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix9Target","Matrix 9 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix9Depth","Matrix 9 depth",7,-1,1,0,1,{}},
+        {"matrix10Source","Matrix 10 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix10Target","Matrix 10 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix10Depth","Matrix 10 depth",7,-1,1,0,1,{}},
+        {"matrix11Source","Matrix 11 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix11Target","Matrix 11 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix11Depth","Matrix 11 depth",7,-1,1,0,1,{}},
+        {"matrix12Source","Matrix 12 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix12Target","Matrix 12 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix12Depth","Matrix 12 depth",7,-1,1,0,1,{}},
+        {"matrix13Source","Matrix 13 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix13Target","Matrix 13 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix13Depth","Matrix 13 depth",7,-1,1,0,1,{}},
+        {"matrix14Source","Matrix 14 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix14Target","Matrix 14 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix14Depth","Matrix 14 depth",7,-1,1,0,1,{}},
+        {"matrix15Source","Matrix 15 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix15Target","Matrix 15 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix15Depth","Matrix 15 depth",7,-1,1,0,1,{}},
+        {"matrix16Source","Matrix 16 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix16Target","Matrix 16 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix16Depth","Matrix 16 depth",7,-1,1,0,1,{}},
+        {"matrix17Source","Matrix 17 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix17Target","Matrix 17 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix17Depth","Matrix 17 depth",7,-1,1,0,1,{}},
+        {"matrix18Source","Matrix 18 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix18Target","Matrix 18 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix18Depth","Matrix 18 depth",7,-1,1,0,1,{}},
+        {"matrix19Source","Matrix 19 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix19Target","Matrix 19 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix19Depth","Matrix 19 depth",7,-1,1,0,1,{}},
+        {"matrix20Source","Matrix 20 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix20Target","Matrix 20 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix20Depth","Matrix 20 depth",7,-1,1,0,1,{}},
+        {"matrix21Source","Matrix 21 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix21Target","Matrix 21 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix21Depth","Matrix 21 depth",7,-1,1,0,1,{}},
+        {"matrix22Source","Matrix 22 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix22Target","Matrix 22 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix22Depth","Matrix 22 depth",7,-1,1,0,1,{}},
+        {"matrix23Source","Matrix 23 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix23Target","Matrix 23 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix23Depth","Matrix 23 depth",7,-1,1,0,1,{}},
+        {"matrix24Source","Matrix 24 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix24Target","Matrix 24 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix24Depth","Matrix 24 depth",7,-1,1,0,1,{}},
+        {"matrix25Source","Matrix 25 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix25Target","Matrix 25 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix25Depth","Matrix 25 depth",7,-1,1,0,1,{}},
+        {"matrix26Source","Matrix 26 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix26Target","Matrix 26 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix26Depth","Matrix 26 depth",7,-1,1,0,1,{}},
+        {"matrix27Source","Matrix 27 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix27Target","Matrix 27 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix27Depth","Matrix 27 depth",7,-1,1,0,1,{}},
+        {"matrix28Source","Matrix 28 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix28Target","Matrix 28 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix28Depth","Matrix 28 depth",7,-1,1,0,1,{}},
+        {"matrix29Source","Matrix 29 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix29Target","Matrix 29 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix29Depth","Matrix 29 depth",7,-1,1,0,1,{}},
+        {"matrix30Source","Matrix 30 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix30Target","Matrix 30 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix30Depth","Matrix 30 depth",7,-1,1,0,1,{}},
+        {"matrix31Source","Matrix 31 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix31Target","Matrix 31 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix31Depth","Matrix 31 depth",7,-1,1,0,1,{}},
+        {"matrix32Source","Matrix 32 source",7,0,20,0,1,{"Off","LFO 1","LFO 2","LFO 3","Amp Env","Filter Env","Mod Env","Velocity","Key","Mod Wheel","Aftertouch","Pitch Bend","Constant","Foot","Expression","LFO1 * MW","LFO2 * MW","LFO3 * MW","LFO1 * AT","LFO2 * AT","LFO3 * AT"}},
+        {"matrix32Target","Matrix 32 target",7,0,6,0,1,{"Off","Cutoff","Volume","Pan","Resonance","Drive","Pitch"}},
+        {"matrix32Depth","Matrix 32 depth",7,-1,1,0,1,{}},
+        {"modScope","Modulation scope",6,0,1,0,1,{"Global (legacy)","Per voice"}},
+        {"seqHostSync","Sequence clock",8,0,1,0,1,{"Note start","DAW position"}},
+        {"seqTie1","Step 1 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie2","Step 2 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie3","Step 3 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie4","Step 4 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie5","Step 5 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie6","Step 6 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie7","Step 7 tie to next",8,0,1,0,1,{"Play","Tie"}},
+        {"seqTie8","Step 8 tie to next",8,0,1,0,1,{"Play","Tie"}}
+        ,{"rexPage","REX slice page (128 notes per page)",8,0,31,0,1,{}}
     };return specs;
 }
 juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
@@ -124,7 +219,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
     for(const auto& s:parameterSpecs()) {
         const juce::ParameterID id{s.id,1};
         if(!s.choices.isEmpty())result.add(std::make_unique<juce::AudioParameterChoice>(id,s.name,s.choices,static_cast<int>(s.initial)));
-        else if(juce::String(s.id)=="channel" || juce::String(s.id)=="seqHits" || juce::String(s.id)=="seqRotation" || juce::String(s.id)=="seqLength" || juce::String(s.id)=="seqOctaves" || juce::String(s.id).startsWith("seqNote"))result.add(std::make_unique<juce::AudioParameterInt>(id,s.name,static_cast<int>(s.low),static_cast<int>(s.high),static_cast<int>(s.initial)));
+        else if(juce::String(s.id)=="rexPage" || juce::String(s.id)=="channel" || juce::String(s.id)=="seqHits" || juce::String(s.id)=="seqRotation" || juce::String(s.id)=="seqLength" || juce::String(s.id)=="seqOctaves" || juce::String(s.id).startsWith("seqNote"))result.add(std::make_unique<juce::AudioParameterInt>(id,s.name,static_cast<int>(s.low),static_cast<int>(s.high),static_cast<int>(s.initial)));
         else result.add(std::make_unique<juce::AudioParameterFloat>(id,s.name,juce::NormalisableRange<float>(s.low,s.high,0.f,s.skew),s.initial));
     }return result;
 }
@@ -168,8 +263,9 @@ EnvelopeSettings readEnvelopeSettings(juce::AudioProcessorValueTreeState& state)
 
 MatrixSettings readMatrixSettings(juce::AudioProcessorValueTreeState& state) {
     MatrixSettings p;
-    static const char* ids[4][3]={{"matrix1Source","matrix1Target","matrix1Depth"},{"matrix2Source","matrix2Target","matrix2Depth"},{"matrix3Source","matrix3Target","matrix3Depth"},{"matrix4Source","matrix4Target","matrix4Depth"}};
-    for(size_t i=0;i<4;++i){p[i].source=static_cast<int>(state.getRawParameterValue(ids[i][0])->load());p[i].target=static_cast<int>(state.getRawParameterValue(ids[i][1])->load());p[i].depth=state.getRawParameterValue(ids[i][2])->load();}return p;
+    static const auto ids=[] {std::array<std::array<juce::String,3>,32> result;
+        for(size_t i=0;i<result.size();++i){auto prefix="matrix"+juce::String(static_cast<int>(i)+1);result[i]={prefix+"Source",prefix+"Target",prefix+"Depth"};}return result;}();
+    for(size_t i=0;i<p.size();++i){p[i].source=static_cast<int>(state.getRawParameterValue(ids[i][0])->load());p[i].target=static_cast<int>(state.getRawParameterValue(ids[i][1])->load());p[i].depth=state.getRawParameterValue(ids[i][2])->load();}return p;
 }
 SequenceSettings readSequenceSettings(juce::AudioProcessorValueTreeState& state) {
     SequenceSettings p;auto get=[&](const char* id){return state.getRawParameterValue(id)->load();};
@@ -177,5 +273,7 @@ SequenceSettings readSequenceSettings(juce::AudioProcessorValueTreeState& state)
     p.rhythm=static_cast<int>(get("seqRhythm"));p.hits=static_cast<int>(get("seqHits"));p.rotation=static_cast<int>(get("seqRotation"));p.swing=(get("seqSwing")-50.f)*0.02f;p.noteOrder=static_cast<int>(get("seqNoteOrder"));
     static const char* notes[]={"seqNote1","seqNote2","seqNote3","seqNote4","seqNote5","seqNote6","seqNote7","seqNote8"};
     static const char* velocities[]={"seqVel1","seqVel2","seqVel3","seqVel4","seqVel5","seqVel6","seqVel7","seqVel8"};
-    for(size_t i=0;i<8;++i){p.notes[i]=static_cast<int>(get(notes[i]));p.velocities[i]=get(velocities[i]);}return p;
+    p.hostSync=get("seqHostSync")>0.5f;
+    static const char* ties[]={"seqTie1","seqTie2","seqTie3","seqTie4","seqTie5","seqTie6","seqTie7","seqTie8"};
+    for(size_t i=0;i<8;++i){p.ties[i]=get(ties[i])>0.5f;p.notes[i]=static_cast<int>(get(notes[i]));p.velocities[i]=get(velocities[i]);}return p;
 }

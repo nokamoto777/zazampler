@@ -1,7 +1,7 @@
-# ZaZampler 0.8 — ZamplerのSFZ音色を利用するサンプラープラグイン
+# ZaZampler 0.9 — ZamplerのSFZ音色を利用するサンプラープラグイン
 
 M1 MacBook Pro向け **arm64ネイティブ / AUv3・VST3** のソースプロジェクトです。
-互換用にAUv2とStandaloneもビルドします。JUCE 8.0.6 + sfizz 1.2.3を固定コミットで取得します。
+互換用にAUv2とStandaloneもビルドします。JUCE 8.0.6 + sfizz 1.2.3 + VelociLoopsを固定コミットで取得します。
 
 macOS arm64のビルド・自動テスト・署名検証をGitHub Actionsで実施しています。
 [ReleasesのAssets](https://github.com/nokamoto777/zazampler/releases)から `ZaZampler-macOS-arm64.zip` を取得できます。
@@ -19,15 +19,15 @@ Zampler本体の複製、ドロップイン置換、同一音質の再現では�
 | キー／ベロシティ分割・ループ・エンベロープ | SFZの指定をsfizzで処理 |
 | SFZの独自／非対応opcode | 完全互換は保証しない。未知opcodeをステータスに表示 |
 | Zamplerの `.fxb` / `.fxp` | 確認済みチャンク形式の音色一覧・SFZ参照・フィルター／FXの近似変換に対応 |
-| REX / REX2 / `.rx2` | **未対応**。WAVへの変換だけではスライス／テンポ追従情報は復元されない |
+| REX / REX2 / `.rx2` / `.rcy` | 内蔵デコーダーでスライスを読み込み、MIDIノートに割り当て。ループ全体の自動テンポ追従再生は別途未対応 |
 | フィルター・FX | 独自DSPを追加。種類・設定は下記参照。本家のアルゴリズム／出音一致は未検証 |
-| LFO | 3基の共通LFOを実装。6波形・テンポ同期・変調先選択。FXB内のLFO／マトリクス設定は未変換 |
-| MOD MATRIX・シーケンサー | 4系統の共通マトリクス、Up/Downアルペジオ、8ステップシーケンサーを実装。本家の設定データは未変換 |
+| LFO | 3基、Global / Per voice切替。6波形・テンポ同期。FXB設定を近似取り込み |
+| MOD MATRIX・シーケンサー | 32行のマトリクス、Up/Downアルペジオ、8ステップ、Tie、DAW位置同期。FXBは確認済みの設定を近似取り込み |
 | 既存DAWプロジェクトのZampler自動置換 | 非対応。別プラグインとして挿し、MIDIを渡す |
 | AUv3 / VST3 / AUv2 | macOS arm64 CIでビルド・署名検証済み。DAW実機検証は未実施 |
 
 Zamplerで購入・取得した全ライブラリがそのまま再現されるとは限りません。
-FXB側のフィルター／FXは近似変換です。エンベロープ、LFO、MOD MATRIX、アルペジエーターなどは取り込みません。
+FXB側の設定は近似変換です。LFO、3基のADSR、対応するマトリクス経路、Glide、Mono、Keytrack、アルペジエーターの基本設定を取り込みます。未対応の経路、本家固有のArp/ArpFingerステップ符号やTiesはIMPORT DETAILSに明示します。
 
 ## バイナリのダウンロード
 
@@ -122,9 +122,9 @@ MAINの **LIBRARY FOLDER** で `Zampler Sound Libraries` を指定すると、�
 
 ## 演奏機能
 
-- **Keytrack**: FILTERのKTrack。C4（MIDI 60）を基準に、1なら鍵盤1オクターブにつきCutoffも1オクターブ移動。−1～2、0で無効。最後に発音した鍵を全ボイス共通の基準にします。
+- **Keytrack**: FILTERのKTrack。C4（MIDI 60）を基準に、1なら鍵盤1オクターブにつきCutoffも1オクターブ移動。−1～2、0で無効。Globalでは最後の鍵、Per voiceでは各ボイス自身の鍵を基準にします。
 - **Glide**: ENV ROUTINGのVoice modeをMonoにして、OUTPUTのGlide / sを調整。最後に押した鍵を優先し、重ねて押すと指定秒数で前の音程から移動。鍵を離すと残っている鍵へ戻ります。最初の一音は滑らず、Polyでは無効です。
-- **MATRIX**: 4行それぞれSource / Destination / Depthを指定。同じLFOを複数の変調先へ送ることもできます。Depth 0で無効、負値で反転。
+- **MATRIX**: 32行（スクロール）それぞれSource / Destination / Depthを指定。同じLFOを複数の変調先へ送ることもできます。Depth 0で無効、負値で反転。
 - **SEQUENCE**: ModeをArp Up / Arp Down / 8-stepにして鍵を押すと開始。DivisionはホストBPM同期（取得できなければ120）。Gateで発音時間、Lengthで1～8のステップ数、Octavesでアルペジオ範囲1～3オクターブを指定。
 - **8-step編集**: 上段は基準鍵からの半音差（−24～24）、下段はVelocity倍率（0で休符）。基準鍵は最後に押した鍵。アルペジオでも下段のVelocity列とLengthを使用します。
 - **Pitch変調**: LFO、Mod Envelope、Matrixから利用可能。Depth 1は12半音。音声の再生速度へサンプル単位で反映し、既存SFZのpitch bend指定と加算します。
@@ -132,7 +132,7 @@ MAINの **LIBRARY FOLDER** で `Zampler Sound Libraries` を指定すると、�
 Monoとシーケンサーはサステインペダルに対応し、重複ノート、CC120/121/123、Panic、音色変更、ホスト停止を処理します。Monoの各ノートで音源を再トリガーします。前のノートのリリース音は同じ演奏音程へ追従するため、SFZのReleaseが長ければ余韻は重なります。
 モード変更は発音中の音と残響を停止します。切替後は鍵を押し直してください。全設定は保存しますが、進行中のステップ位置や保持中の鍵は保存しません。
 
-MatrixのSourceはLFO 1～3、Amp/Filter/Mod Envelope、Velocity、Key、Mod Wheel、Channel Aftertouch、Pitch Bend。LFOをMatrixのSourceにする場合、左側のWave/Rate/Skew/Fadeを使い、LFO ROUTINGのTarget/Depthとは独立です。Keyは(C4からの半音差)/60、ほかのMIDIソースは0～1（Pitch Bendは−1～1）。
+MatrixのSourceはLFO 1～3、Amp/Filter/Mod Envelope、Velocity、Key、Mod Wheel、Channel Aftertouch、Pitch Bend、Constant、Foot、Expression、LFO×Wheel/Aftertouch。LFOをMatrixのSourceにする場合、左側のWave/Rate/Skew/Fadeを使い、LFO ROUTINGのTarget/Depthとは独立です。Keyは(C4からの半音差)/60、ほかのMIDIソースは0～1（Pitch Bendは−1～1）。
 DestinationはCutoff（5オクターブ）、Volume（12 dB）、Pan、Resonance（4 Q）、Drive（24 dB）、Pitch（12半音）。括弧内はDepth 1での基準量。4行の変調量を加算し、最終的に安全なパラメーター範囲へ制限します。
 
 ![Matrix](docs/ZaZampler-Matrix.png)
@@ -159,12 +159,12 @@ DestinationはCutoff（5オクターブ）、Volume（12 dB）、Pan、Resonance
 | 10 | 1, 3, 4, 6, 7, 9, 10, 12, 13, 15 | 10 |
 | 11 | 1, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16 | 11 |
 | 12 | 1, 3, 4, 5, 7, 8, 9, 11, 12, 13, 15, 16 | 12 |
-| 13 | 1, 3, 4, 5, 6, 8, 9, 10, 12, 13, 14, 16 | **12** |
+| 13 | 1, 3, 4, 5, 6, 8, 9, 10, 12, 13, 14, 15, 16 | 13 |
 | 14 | 1, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16 | 14 |
 | 15 | 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 | 15 |
 | 16 | 1～16すべて | 16 |
 
-**RHYTHM 13は、提供されたマップの「■」が12個のため、その位置をそのまま採用しています。** 画面にも実際の発音数を表示します。上表どおりの位置にするにはRotate=0、Shuffle=50%、SEQUENCEのVelocityをすべて0より大きく設定してください。
+**RHYTHM 13は修正版の13音マップです（2026-10-09）。** 画面にも実際の発音数を表示します。上表どおりの位置にするにはRotate=0、Shuffle=50%、SEQUENCEのVelocityをすべて0より大きく設定してください。
 
 | 操作 | 動作 |
 |---|---|
@@ -181,7 +181,7 @@ DestinationはCutoff（5オクターブ）、Volume（12 dB）、Pan、Resonance
 Note orderとSEQUENCEのOctavesはアルペジオで使用します。8-stepモードでは設定した音程列を使用し、リズムの発音位置で次のステップへ進みます。
 SEQUENCEのLength／Velocity列も使用するため、Velocity=0のスロットは休符になります。
 最後の鍵（サステインを含む）を離すと停止し、次に押した鍵から周期を再開します。
-ホストBPMには同期しますが、DAWの小節頭／PPQへの位置同期やFigureのTiesは含みません。
+ENV ROUTINGのClockを **DAW position** にすると、ホストのPPQ／小節頭に同期します。途中再生やシーク、ループで位置を合わせます。停止中や位置情報のないホストではNote start動作です。SEQUENCE各ステップの **Tie** は、その音を次の発音ステップまで保持し、次のステップでノートオンを再送しません。Tieを連続指定すると保持を延長します。
 固定マップはユーザー指定に基づく実装で、Figureの内部処理との一致を検証したものではありません。
 
 ## エンベロープ
@@ -194,14 +194,14 @@ SEQUENCEのLength／Velocity列も使用するため、Velocity=0のスロット
 
 ![エンベロープ設定画面](docs/ZaZampler-Envelope.png)
 
-3基とも全ボイス共通で、新しいノートオンで再トリガーし、全キーとサステインペダルが離れるとReleaseへ移行します。
+ENV ROUTINGの **Modulation scope** でGlobal（旧動作）/ Per voiceを切り替えます。Globalでは共通のゲート、Per voiceでは各音の発音／リリースに独立した3基のADSRとLFOが反応します。サステインペダルにも対応します。
 SFZ側のエンベロープと重なって作用します。**SFZ側で音が先に終了する場合、追加ADSRだけでReleaseを延長することはできません。**
 旧音色への影響を避けるため、初期値はAmp Off / Filter量0 / Mod Offです。
-仕様と例は `docs/ENVELOPES.md` を参照してください。FXB内のADSR設定の自動変換は未対応です。
+仕様と例は `docs/ENVELOPES.md` を参照してください。FXB内のADSRは時間カーブを近似変換します。SFZのエンベロープに乗算するため、元サンプルやSFZボイスの寿命を延長するものではありません。
 
 ## LFO
 
-左側のLFOは音源そのものではなく、音程・音量・フィルター等を周期的に変調する低周波オシレーターです。音源は中央で選ぶSFZです。FXB内のLFO設定は未変換なので、音色選択で本家と同じ設定にはなりません。
+左側のLFOは音源そのものではなく、音程・音量・フィルター等を周期的に変調する低周波オシレーターです。音源は中央で選ぶSFZです。Approximate bank FXを有効にすると、FXB内のLFOと対応するマトリクス経路を取り込みます。カーブ・波形／同期値の対応は近似で、本家との音響的な一致は未校正です。
 
 3基を同時に使用できます。まずSFZ音色を読み込み、次のように設定してください。
 
@@ -229,7 +229,7 @@ Cutoff/ResonanceはフィルターがOffだと聴感上変化せず、Driveに�
 Volumeは0～1の減衰によるトレモロ、Panは元のステレオ信号の左右バランスです。
 Volume/PanはFX入力の手前なので、ディレイ／リバーブの残響を最後段で揺らす動作ではありません。
 
-このLFOは全ボイス共通です。PitchはDepth 1で±12半音。ボイスごとの独立位相とDAW再生位置への位相ロックは未対応です。
+PitchはDepth 1で±12半音。Per voiceではボイスごとに独立した位相を持ちます。LFO自体のDAW位置への位相ロックはなく、Host tempoは速度の同期です。
 Host tempoは周期を同期し、位相は連続します。ノートリセット、Panic、音色ロードで状態が初期化されます。
 LFOの設定値はDAWへ保存しますが、進行中の位相やランダム系列の途中位置は保存しません。
 旧プロジェクトとFXB音色選択時の追加LFOはOff/Depth 0で開始し、既存音色を勝手に変化させません。
@@ -260,7 +260,7 @@ Zampler系の配置を参考に、中央に青い音色ディスプレイ、左�
 カットオフ最大値は、LP6を除き自動バイパスではありません。完全バイパスはOffを選びます。
 LP/HPはTPT方式の状態変数フィルターで、24 dBモードは2段カスケードです。
 
-信号順序：**SFZ合成 → 共通Amp/LFO音量・パン → Filter → Saturation → EQ1 → EQ2 → Chorus → Phaser → Delay → Reverb → Output**。
+Globalの信号順序：**SFZ合成 → 共通Amp/LFO音量・パン → Filter → Saturation → EQ1 → EQ2 → Chorus → Phaser → Delay → Reverb → Output**。Per voiceでは追加ADSR・LFO・Matrix・Filterを各SFZボイス内に置き、合成後の共通Filterをバイパスします。その他のFXは共通です。
 フィルターはステレオ合成後のマスターフィルターです。各ボイス独立のフィルター／フィルターADSRは実装していません。
 SFZ自体のフィルター／エンベロープ指定は引き続きsfizzが処理します。
 サチュレーションは対称tanh方式で、オーバーサンプリングは未実装です。高Driveではエイリアシングが生じる場合があります。
@@ -324,3 +324,19 @@ ctest --test-dir build-core --output-on-failure
 - Zampler公式：https://www.zampler.de/
 - sfizz：https://github.com/sfztools/sfizz
 - JUCE CMake API：https://github.com/juce-framework/JUCE/blob/8.0.6/docs/CMake%20API.md
+
+## バージョン確認・デバッグログ
+
+左上の **ZaZamplerロゴをダブルクリック**すると、バージョン、ビルド番号、コミット、ビルド日時（UTC）、GitHub URLを表示します。
+**DEBUG LOG**で別ウィンドウを開き、**REFRESH**で更新、**COPY ALL**でコピーできます。Codexへそのまま貼り付けて問題を報告できます。
+プラグインインスタンス生成からのロード結果、再生／停止・シーク、MIDI発音数、Panicなどを新しい順に表示し、現在の全パラメーターと取り込み情報も付けます。
+ログはメモリ内のみ、最大4096件。古いログとリアルタイムキューで省略した件数を表示します。DAWを終了すると消え、クラッシュ後の復旧ログにはなりません。
+
+## REX / REX2
+
+`.rex`・`.rx2`・`.rcy`をライブラリフォルダーへ置くと、SFZと同じ一覧から選べます。FXBからの参照も解決します。
+VelociLoopsのデコーダーでバックグラウンド変換し、**スライス1をMIDI 0、スライス2をMIDI 1…**に割り当てます。
+129個目以降はENV ROUTINGの **REX page** を1以上にします（1ページ128音）。ロード時はページ0です。画面のREX page値は各ブロックにCC20として送るため、このノブを使ってページを切り替えてください。
+REX選択時は画面鍵盤もMIDI 0から表示し、最初のスライスをクリックして確認できます。各スライスをワンショットで演奏します。ループ全体の自動再構成・DAWテンポへの追従は実装していません。通常のアルペジエーターを使う場合も、原ファイルのスライス時刻は自動では適用しません。
+変換キャッシュは一時フォルダーに作り、音源の破棄時に削除します。DAW保存には元ファイルの参照を保持し、復元時に再変換します。元のREXファイルを移動・削除しないでください。
+入力64 MiB、4096スライス、展開音声256 MiBまで。独自デコーダーによる互換実装であり、すべての市販REXの再現は保証しません。

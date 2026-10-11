@@ -14,6 +14,7 @@ inline std::vector<uint8_t> make(){
     std::memcpy(b.data()+200,"Synthetic preset",16);std::memcpy(b.data()+200+11560,"/old/machine/",13);
     std::memcpy(b.data()+200+12560,"Sine.sfz",8);std::memcpy(b.data()+200+12780,"Init Patch",10);
     param(b,28,0.5f);param(b,29,0.25f);param(b,126,1);param(b,117,1);param(b,87,0.4f);param(b,88,0.3f);param(b,89,0.5f);
+    param(b,20,1);param(b,30,0.5f);
     return b;
 }
 }

@@ -1,25 +1,22 @@
-# 実装状況 — 0.8
-
-## 今回実装
+# 実装状況 — 0.9
 
 | 項目 | 実装内容 |
 |---|---|
-| Filter Keytrack | C4基準、−1～2 octave/octave、最後の発音鍵に追従 |
-| Mono / Glide | 最後の鍵優先、保持鍵への復帰、0～2秒の線形半音移動、サステイン対応 |
-| Mod Matrix | 4系統、11ソース、6変調先、正負Depth、ルート切替の平滑化 |
-| シーケンサー | Up/Down、1～3 Octaves、1～8ステップ、−24～24半音、Velocity倍率・休符、Gate、BPM同期 |
-| 音程変調 | LFO/Mod Envelope/MatrixとGlideをsfizzのサンプル再生へサンプル単位で反映 |
-| オフライン復元 | 非リアルタイム通知のあるホストのレンダーで、ロード完了を待機 |
-| UI・保存 | 無効だった2ノブを接続。MATRIX/SEQUENCE/Voice mode、全追加値の保存・オートメーション |
+| 音源 | SFZ、REX2、旧REX/RCYのスライス演奏 |
+| FXB/FXP | 音色一覧・参照解決、Filter/FX、LFO/ADSR、対応Matrix経路、Mono/Glide/Keytrack、Arp基本設定の近似取り込み |
+| 変調 | 3 LFO、3 ADSR、32 Matrix経路。Global / Per voice切替 |
+| 演奏 | Mono Glide、Keytrack、Up/Down・8ステップ、指定16パターン、Euclidean、Swing、Tie、DAW PPQ位置同期 |
+| UI | ライブラリブラウザー、波形表示、リサイズ、ロゴからAbout／デバッグログ |
+| 保存 | パラメーター・埋め込みバンク・元音源参照・フォルダー権限。旧状態はGlobal / Note startを維持 |
 
-## 残る機能・互換上の制約
+## 残る互換上の制約
 
-- REX/REX2のデコード・スライス／テンポ追従。本プロジェクトに対応デコーダーを含めていない。
-- FXB内のADSR/LFO/Matrix/Mono/Glide/Sequencer設定の変換、未知のFXBレイアウト、FXB書き出し。未校正のパラメーターを推測適用しない。
-- 本家Zamplerと同一のDSP、音質、全パラメーター、既存DAWインスタンスの自動置換。
-- 追加Filter/ADSR/Matrix/LFOのボイスごとの独立動作（現在は共通）。SFZ自体のボイス別定義はsfizzで処理。
-- PPQ位相ロック、シーケンサーのスイング／ラッチ／外部MIDI出力。
-- サチュレーションのオーバーサンプリング、出力リミッター、音色切替クロスフェード、参照サンプルの全件欠落検査。
-- macOS arm64でのコンパイル、AUv3署名・登録、実DAWでの動作検証。この環境ではLinux版の検証まで。
+- FXBの本家固有マトリクス変調先、Random等の非対応ソース、voice selector、Arp/ArpFingerのステップ符号、元のTiesは未変換。IMPORT DETAILSに表示する。
+- LFO波形順・同期区分を含む変換カーブは本家と未校正。同一DSP／出音の保証、FXB書き出し、既存Zamplerインスタンスの置換は対象外。
+- REXはスライスのMIDI演奏まで。スライス時刻からの自動ループ再構成・テンポ追従は未実装。
+- LFOのHost tempoは周期の同期。LFO位相そのもののPPQロックは未実装。
+- 追加ADSRはSFZに乗算するため、SFZボイス寿命より長くReleaseを延ばせない。
+- 外部MIDI出力、ラッチ、出力リミッター、音色切替クロスフェード、欠落サンプル全件検査は未実装。
+- macOSの各DAW・AUv3サンドボックス・実際の市販REX素材での検証は実機確認が必要。
 
-提供されたColours FXBには波形がなく、対応するSFZ/WAVも未提供のため、そのバンクの出音比較はできていない。
+提供されたColours FXBは読み込みを検証。対応SFZ/WAVがないため出音比較は未実施。

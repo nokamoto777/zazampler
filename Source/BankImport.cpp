@@ -43,15 +43,67 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
         set((prefix+"Q").toRawUTF8(),0.2f*std::pow(50.f,p[base+2]));
         set((prefix+"Db").toRawUTF8(),36*p[base+3]-18);
     }
-    result.warnings.add("Amp/filter envelopes, key tracking, modulation matrix, LFOs, glide and mono mode are not imported.");
-    if(p[115]>=0.5f)result.warnings.add("Original arpeggiator is enabled but its settings are not imported. Configure the SEQUENCE page manually.");
+    // Time/rate tapers are explicitly approximate, while slot and route IDs
+    // come from the manufacturer's parameter descriptors and route-name tables.
+    auto seconds=[](float value){return 10.f*value*value*value;};
+    const char* envelopes[]={"envAmp","envFilter","envMod"};
+    const int bases[]={18,22,57};
+    for(int e=0;e<3;++e) {
+        const auto prefix=juce::String(envelopes[e]);const auto base=static_cast<size_t>(bases[e]);
+        set((prefix+"Attack").toRawUTF8(),seconds(p[base]));
+        set((prefix+"Decay").toRawUTF8(),seconds(p[base+1]));
+        set((prefix+"Sustain").toRawUTF8(),p[base+2]);
+        set((prefix+"Release").toRawUTF8(),seconds(p[base+3]));
+    }
+    set("envAmpEnabled",1);set("modScope",1);
+    set("envFilterAmount",10*p[30]-5);set("keytrack",p[26]);
+    set("voiceMode",p[127]>=0.5f?1.f:0.f);set("glide",2*p[78]*p[78]);
+    for(int i=0;i<3;++i) {
+        const auto prefix="lfo"+juce::String(i+1);const auto base=static_cast<size_t>(33+9*i);
+        set((prefix+"Shape").toRawUTF8(),static_cast<float>(choice(p[base],6)));
+        set((prefix+"Rate").toRawUTF8(),0.01f*std::pow(3000.f,p[base+1]));
+        set((prefix+"Division").toRawUTF8(),static_cast<float>(choice(p[base+1],11)));
+        set((prefix+"Skew").toRawUTF8(),juce::jlimit(0.05f,0.95f,p[base+2]));
+        set((prefix+"Fade").toRawUTF8(),seconds(p[base+3]));
+        set((prefix+"Sync").toRawUTF8(),p[base+4]>=0.5f?1.f:0.f);
+        set((prefix+"Reset").toRawUTF8(),p[base+5]>=0.5f?1.f:0.f);
+    }
+    auto source=[](int id) {
+        switch(id){case 1:return 7;case 2:return 8;case 3:return 9;case 4:return 11;case 5:return 10;
+            case 7:return 12;case 11:return 13;case 12:return 14;case 13:return 1;case 14:return 2;case 15:return 3;
+            case 16:return 15;case 17:return 16;case 18:return 17;case 19:return 18;case 20:return 19;case 21:return 20;
+            case 22:return 4;case 23:return 5;case 25:return 6;default:return 0;}
+    };
+    auto target=[](int id){switch(id){case 1:case 2:return 6;case 3:case 88:return 2;case 4:return 3;case 5:return 1;case 26:return 4;default:return 0;}};
+    for(size_t i=0;i<32;++i) {
+        const int src=static_cast<int>(std::lround(p[128+i])),dst=static_cast<int>(std::lround(p[192+i]));
+        if(!src || !dst)continue;
+        const int mappedSource=source(src),mappedTarget=target(dst);
+        if(!mappedSource || !mappedTarget || p[224+i]!=0) {
+            result.warnings.add("Matrix row "+juce::String(static_cast<int>(i)+1)+" skipped: source ID "+juce::String(src)+", destination ID "+juce::String(dst)+", voice selector "+juce::String(p[224+i])+" is not supported.");continue;
+        }
+        const auto prefix="matrix"+juce::String(static_cast<int>(i)+1);
+        set((prefix+"Source").toRawUTF8(),static_cast<float>(mappedSource));
+        set((prefix+"Target").toRawUTF8(),static_cast<float>(mappedTarget));
+        set((prefix+"Depth").toRawUTF8(),(2*p[160+i]-1)*(dst==2?1.f/12.f:1.f));
+    }
+    set("seqRhythm",0);set("seqHostSync",p[114]>=0.5f?1.f:0.f);
+    set("seqOctaves",static_cast<float>(choice(p[70],3)+1));
+    set("seqDivision",static_cast<float>(choice(p[71],8)));
+    set("seqGate",juce::jlimit(0.05f,0.95f,p[72]));set("seqSwing",50+25*p[73]);
+    if(p[115]>=0.5f) {
+        const int mode=static_cast<int>(std::lround(p[125]));
+        set("seqMode",mode==1?2.f:1.f);
+        result.warnings.add("Arpeggiator timing/range imported approximately. Original mode "+juce::String(mode)+" uses "+(mode==1?juce::String("Down"):juce::String("Up"))+". Packed Arp/ArpFinger step data, original ties and free-running rate are not decoded; edit SEQUENCE as needed.");
+    }
+    result.warnings.add("LFO/envelope/glide/keytrack and supported matrix routes imported with approximate curves. Per-voice envelopes multiply the SFZ envelopes; source sample/voice lifetime still applies. LFO shape order and synced division scaling need auditory calibration against Zampler.");
     return result;
 }
 SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,const juce::File& root) {
     if(p.sampleFile.empty())return {{},"This slot has no sample reference."};
     const auto ref=juce::String::fromUTF8(p.sampleFile.c_str()).replaceCharacter('\\','/');
     const auto name=ref.fromLastOccurrenceOf("/",false,false);
-    if(!name.endsWithIgnoreCase(".sfz"))return {{},"The preset references a non-SFZ instrument (REX is not supported)."};
+    if(!name.endsWithIgnoreCase(".sfz") && !name.endsWithIgnoreCase(".rex") && !name.endsWithIgnoreCase(".rx2") && !name.endsWithIgnoreCase(".rcy"))return {{},"The preset references an unsupported instrument type."};
     auto inside=[&](const juce::File& f){
         namespace fs=std::filesystem;std::error_code error;
         const auto canonicalRoot=fs::weakly_canonical(fs::u8path(root.getFullPathName().toStdString()),error);if(error)return false;
