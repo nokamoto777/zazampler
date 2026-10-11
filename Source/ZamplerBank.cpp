@@ -42,12 +42,13 @@ ZamplerBank ZamplerBank::parse(const void* input,size_t size) {
         const auto* record=chunk+40+static_cast<size_t>(i)*recordSize;
         ZamplerPatch p;p.slot=static_cast<int>(i);p.name=text(record,32);p.comment=text(record+32,480);
         p.originalDirectory=text(record+11560,1000);p.sampleFile=text(record+12560,220);
-        for(size_t j=0;j<128;++j) {
+        for(size_t j=0;j<p.parameters.size();++j) {
             const auto bits=le(record+512+j*4);float v;std::memcpy(&v,&bits,sizeof(v));
             // ArpMode (125) is stored as a raw enum in Colours (observed 5 and 6), not normalized.
-            const float upper=j==125?6.f:1.00001f;
+            const bool raw=(j>=128 && j<160) || (j>=192 && j<256) || (j>=322 && j<329);
+            const float upper=j==125?6.f:raw?128.00001f:1.00001f;
             require(std::isfinite(v) && v>=0.f && v<=upper,"Invalid Zampler parameter range");
-            p.parameters[j]=j==125?v:std::min(v,1.f);
+            p.parameters[j]=j==125 || raw?v:std::min(v,1.f);
         }
         p.opaqueRecord.assign(record,record+recordSize);
         result.patches.push_back(std::move(p));

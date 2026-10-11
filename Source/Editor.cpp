@@ -1,10 +1,13 @@
 #include "Editor.h"
+#include "AboutPanel.h"
 #include "KnobSlider.h"
 class PanelControl final : public juce::Component {
 public:
     juce::Label label;
     KnobSlider slider;
     juce::ComboBox choice;
+    juce::TextButton tie {"TIE"};
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> ba;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sa;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> ca;
     bool isChoice=false;
@@ -14,7 +17,14 @@ public:
         const ParameterSpec* spec=nullptr;
         if(id)for(const auto& p:parameterSpecs())if(juce::String(p.id)==id)spec=&p;
         isChoice=spec && !spec->choices.isEmpty();
-        if(isChoice) {
+        if(spec && juce::String(id).startsWith("seqTie")) {
+            tie.setClickingTogglesState(true);tie.setTooltip(spec->name);
+            tie.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff9bc3d9));
+            tie.setColour(juce::TextButton::buttonOnColourId,juce::Colour(0xffdea03d));
+            tie.setColour(juce::TextButton::textColourOffId,juce::Colour(0xff244758));
+            tie.setColour(juce::TextButton::textColourOnId,juce::Colours::black);
+            addAndMakeVisible(tie);ba=std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(state,id,tie);
+        } else if(isChoice) {
             choice.addItemList(spec->choices,1);addAndMakeVisible(choice);
             ca=std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(state,id,choice);
             choice.setTooltip(spec->name);
@@ -38,6 +48,7 @@ public:
         }
     }
     void resized() override {
+        tie.setBounds(getLocalBounds().reduced(3,0));
         label.setBounds(0,getHeight()-17,getWidth(),16);
         slider.setBounds(0,0,getWidth(),getHeight()-17);
         choice.setBounds(3,label.getText().isEmpty()?0:4,getWidth()-6,label.getText().isEmpty()?getHeight():24);
@@ -80,14 +91,18 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     }
     knob("envAmpEnabled","",992,423,75,19);
     knob("envModTarget","Mod envelope target",5,15,241,50,false,false,true);
-    knob("envModDepth","Depth",274,8,92,86,false,false,true);
+    knob("envModDepth","Depth",274,8,92,70,false,false,true);
     knob("voiceMode","Voice mode",5,79,200,49,false,false,true);
-    for(int row=0;row<4;++row) {
+    knob("modScope","Modulation scope",5,130,270,49,false,false,true);
+    knob("rexPage","REX page",350,130,90,70,false,false,true);
+    canvas.addAndMakeVisible(matrixViewport);matrixViewport.setViewedComponent(&matrixPanel,false);
+    for(int row=0;row<32;++row) {
         const auto prefix=juce::String("matrix")+juce::String(row+1);
         knob((prefix+"Source").toRawUTF8(),("Source "+juce::String(row+1)).toRawUTF8(),0,row*61,160,50,false,false,false,3);
         knob((prefix+"Target").toRawUTF8(),"Destination",165,row*61,166,50,false,false,false,3);
         knob((prefix+"Depth").toRawUTF8(),"Depth",354,row*61,76,58,false,false,false,3);
     }
+    knob("seqHostSync","Clock",210,79,230,49,false,false,true);
     knob("seqMode","Mode",0,0,119,51,false,false,false,4);
     knob("seqDivision","Division",122,0,115,51,false,false,false,4);
     knob("seqGate","Gate",239,0,72,70,false,false,false,4);
@@ -95,7 +110,8 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     knob("seqOctaves","Octaves",387,0,72,70,false,false,false,4);
     for(int step=1;step<=8;++step) {
         knob(("seqNote"+juce::String(step)).toRawUTF8(),(juce::String(step)+" / st").toRawUTF8(),(step-1)*57,83,56,74,false,false,false,4);
-        knob(("seqVel"+juce::String(step)).toRawUTF8(),"Velocity",(step-1)*57,166,56,74,false,false,false,4);
+        knob(("seqVel"+juce::String(step)).toRawUTF8(),"Velocity",(step-1)*57,154,56,66,false,false,false,4);
+        knob(("seqTie"+juce::String(step)).toRawUTF8(),"",(step-1)*57,222,56,24,false,false,false,4);
     }
     knob("seqMode","Mode",0,0,118,50,false,false,false,5);
     knob("seqRhythm","Rhythm",122,0,129,50,false,false,false,5);
@@ -124,7 +140,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     presetSearch.setTextToShowWhenEmpty("Search preset names...",juce::Colour(0xff547d95));
     presetSearch.onTextChange=[this]{refreshPresets();};
     libraryStatus.setFont(juce::FontOptions(10.f));libraryStatus.setColour(juce::Label::textColourId,juce::Colour(0xff244758));
-    scanButton.onClick=[this]{const auto c=processor.libraries.snapshot();processor.libraries.scan(c->root,c->bookmark);};
+    scanButton.onClick=[this]{processor.log.add("Rescan library requested");const auto c=processor.libraries.snapshot();processor.libraries.scan(c->root,c->bookmark);};
     folderButton.setTooltip("Choose Zampler Sound Libraries: discover all FXB / FXP banks recursively.");
     patches.setTextWhenNothingSelected("Select an instrument");patches.onChange=[this]{selectPreset();};
     bankButton.onClick=[this]{chooseBank();};sfzButton.onClick=[this]{processor.clearBank();refreshPresets();};
@@ -160,7 +176,7 @@ void ZaZamplerEditor::bottomPage(bool effects) {
     effectsButton.setToggleState(effects,juce::dontSendNotification);keysButton.setToggleState(!effects,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::centrePage(int page) {
-    centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixPanel.setVisible(page==3);sequencePanel.setVisible(page==4);rhythmPanel.setVisible(page==5);
+    centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixViewport.setVisible(page==3);matrixPanel.setVisible(true);sequencePanel.setVisible(page==4);rhythmPanel.setVisible(page==5);
     for(auto* c:std::initializer_list<juce::Component*>{&libraries,&presetSearch,&libraryStatus,&scanButton,&bankButton,&folderButton,&sfzButton,&previous,&patches,&next,&patchInfo,&approximateFx,&detailsButton})c->setVisible(!routing);
     mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);rhythmButton.setToggleState(page==5,juce::dontSendNotification);canvas.repaint();
 }
@@ -209,7 +225,7 @@ void ZaZamplerEditor::refreshPresets() {
         const juce::File root(juce::String::fromUTF8(folderAccess->path.c_str()));
         const auto catalog=processor.libraries.snapshot();
         if(catalog->root==root.getFullPathName())files=catalog->instruments;
-        else {root.findChildFiles(files,juce::File::findFiles,true,"*.sfz");files.sort();}
+        else {root.findChildFiles(files,juce::File::findFiles,true,"*.sfz;*.rex;*.rx2;*.rcy");files.sort();}
         for(int i=0;i<files.size();++i)if(files[i].getRelativePathFrom(root).containsIgnoreCase(presetSearch.getText()))patches.addItem(files[i].getRelativePathFrom(root),i+1);
         const auto selectedFile=processor.currentInstrumentPath();
         for(int i=0;i<files.size();++i)if(files[i].getFullPathName()==selectedFile && patches.indexOfItemId(i+1)>=0)
@@ -338,15 +354,14 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
         g.setColour(juce::Colour(0xff6b98b3));g.drawLine(287,420,750,420,1.f);
         text("POLYPHONY  128     /     SFZ SAMPLE ENGINE",289,426,440,19,11.f,ink);
     } else if(centrePageIndex==1) {
-        text("FXB LFOs are not imported. Target Off / Depth 0 = bypass.",289,477,462,15,10.f,ink);
+        text("LFO routing + matrix; Global / Per voice in ENV ROUTING.",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==2) {
-        text("AMP: enable On in the AMP ENVELOPE header.",300,352,440,22,12.f,ink);
-        text("FILTER: set Env / oct and enable the filter.",300,377,440,22,12.f,ink);
-        text("GLIDE: choose Mono, then turn Glide / s.",300,402,445,22,12.f,ink);
-        text("All envelopes retrigger on each note-on.",300,432,440,22,11.f,ink);
-        text("Shared by all voices / sustain pedal supported.",300,455,440,22,11.f,ink);
+
+
+        text("Per voice: independent LFOs and ADSR for every note.",300,432,440,22,11.f,ink);
+        text("Global: legacy shared modulation / sustain supported.",300,455,440,22,11.f,ink);
     } else if(centrePageIndex==3) {
-        text("4 GLOBAL ROUTES / PITCH DEPTH 1 = 12 SEMITONES",289,477,462,15,10.f,ink);
+        text("32 ROUTES (SCROLL) / PITCH DEPTH 1 = 12 SEMITONES",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==5) {
         const auto rhythm=readSequenceSettings(processor.parameters);
         int count=0;for(int i=0;i<16;++i)if(NoteSequence::gridHit(i,rhythm))++count;
@@ -359,7 +374,7 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
         }
         text(rhythm.mode==0?"SELECT ARP UP / DOWN OR 8-STEP TO START":rhythm.rhythm==0?"SELECT FIXED MAPS OR EUCLIDEAN":"HOLD KEYS / RELEASE ALL TO RESTART",289,477,462,15,10.f,ink);
     } else {
-        text("HOLD KEYS TO RUN / VELOCITY 0 = REST / HOST BPM",289,477,462,15,10.f,ink);
+        text("TIE HOLDS NOTE INTO NEXT STEP / CLOCK: ENV ROUTING",289,477,462,15,10.f,ink);
     }
     panel(24,532,1052,184,"");
     if(showEffects) {
@@ -369,7 +384,7 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
         const bool enabled[]={active("driveMix"),active("eq1Db"),active("eq2Db"),active("phaserMix") || active("chorusMix"),active("delayMix"),active("reverb")};
         for(int i=0;i<6;++i) {g.setColour(enabled[i]?juce::Colour(0xffe4ae49):juce::Colour(0xff555555));g.fillRect(positions[i]+5,542,4,4);text(names[i],positions[i]+12,536,i==0?76:200,17,i==0?9.f:11.f);if(i>0){g.setColour(juce::Colour(0xff4a4a4a));g.drawLine(static_cast<float>(positions[i]),537,static_cast<float>(positions[i]),708,1.f);}}
     }
-    text("ZaZampler",28,153,155,25,20.f);text("0.8",200,158,45,18,11.f,juce::Colour(0xffdea03d));
+    text("ZaZampler",28,153,155,25,20.f);text(ZAZAMPLER_VERSION,200,158,45,18,11.f,juce::Colour(0xffdea03d));
     text("ARM64  /  AUv3 / VST3",848,505,235,21,11.f);
     g.setColour(juce::Colour(0xff12191e));g.fillRect(990,728,85,7);
     g.setColour(processor.peak.load()>1.f?juce::Colours::orange:juce::Colour(0xffdea03d));g.fillRect(990,728,static_cast<int>(85.f*juce::jlimit(0.f,1.f,processor.peak.load())),7);
@@ -383,11 +398,21 @@ void ZaZamplerEditor::resized() {
     canvas.setTransform(juce::AffineTransform::scale(scale).translated(
         (getWidth()-designWidth*scale)*0.5f,(getHeight()-designHeight*scale)*0.5f));
     mainButton.setBounds(288,184,48,26);lfoButton.setBounds(340,184,90,26);envButton.setBounds(434,184,90,26);matrixButton.setBounds(528,184,70,26);sequenceButton.setBounds(602,184,76,26);rhythmButton.setBounds(682,184,72,26);
-    routingPanel.setBounds(287,221,461,251);envRoutingPanel.setBounds(287,221,461,251);matrixPanel.setBounds(287,221,461,251);sequencePanel.setBounds(287,221,461,251);rhythmPanel.setBounds(287,221,461,251);
+    routingPanel.setBounds(287,221,461,251);envRoutingPanel.setBounds(287,221,461,251);matrixViewport.setBounds(287,221,461,251);matrixPanel.setSize(441,32*61);sequencePanel.setBounds(287,221,461,251);rhythmPanel.setBounds(287,221,461,251);
     folderButton.setBounds(289,221,132,26);bankButton.setBounds(425,221,139,26);sfzButton.setBounds(568,221,90,26);scanButton.setBounds(662,221,86,26);
     libraries.setBounds(289,252,459,26);presetSearch.setBounds(289,283,293,25);libraryStatus.setBounds(585,283,163,25);
     previous.setBounds(288,314,28,30);patches.setBounds(321,314,395,30);next.setBounds(721,314,28,30);
     patchInfo.setBounds(288,350,460,68);approximateFx.setBounds(286,454,305,29);detailsButton.setBounds(603,455,145,25);
     keysButton.setBounds(24,505,115,23);effectsButton.setBounds(144,505,115,23);panicButton.setBounds(679,505,94,23);
     fxPanel.setBounds(32,532,1040,183);visualizer.setBounds(40,537,1020,52);keyboard.setBounds(40,598,1020,104);status.setBounds(24,721,950,28);
+}
+
+void ZaZamplerEditor::showAbout() {
+    processor.log.add("Opened About panel");
+    if(!aboutWindow)aboutWindow=std::make_unique<InfoWindow>("About ZaZampler",new AboutPanel([this]{showDebug();}));
+    aboutWindow->setVisible(true);aboutWindow->toFront(true);
+}
+void ZaZamplerEditor::showDebug() {
+    processor.log.add("Opened debug log");
+    debugWindow=std::make_unique<InfoWindow>("ZaZampler debug log",new LogPanel([this]{return processor.debugReport();}));
 }

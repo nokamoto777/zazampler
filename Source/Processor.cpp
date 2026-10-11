@@ -1,5 +1,6 @@
 #include "Processor.h"
 #include "Editor.h"
+#include "AboutPanel.h"
 #include <cmath>
 
 juce::AudioProcessorValueTreeState::ParameterLayout ZaZamplerProcessor::layout() {
@@ -7,7 +8,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout ZaZamplerProcessor::layout()
 }
 ZaZamplerProcessor::ZaZamplerProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output",juce::AudioChannelSet::stereo(),true)),
-      parameters(*this,nullptr,"QSamplerState",layout()), loader([this]{loadLoop();}) {}
+      parameters(*this,nullptr,"QSamplerState",layout()), loader([this]{loadLoop();}) {log.add("Started "+zazamplerBuildInfo().replace("\n"," | "));}
 ZaZamplerProcessor::~ZaZamplerProcessor() {
     { std::lock_guard<std::mutex> l(stateMutex); stop = true; }
     cv.notify_one();loadDone.notify_all();loader.join();
@@ -17,13 +18,15 @@ bool ZaZamplerProcessor::isBusesLayoutSupported(const BusesLayout& b) const {
 }
 void ZaZamplerProcessor::prepareToPlay(double r, int b) {
     std::lock_guard<std::mutex> l(engineMutex);
+    log.add("Prepare: sample rate="+juce::String(r)+", max block="+juce::String(b)+", wrapper="+juce::AudioProcessor::getWrapperTypeDescription(wrapperType));
     rate = r > 0 ? r : 44100.; maxBlock = juce::jmax(1,b);
     if (instrument) instrument->engine->prepare(rate,maxBlock);
     effects.prepare(rate);sequence.prepare(rate);monoGlide.prepare(rate);performance={};
-    modulationFrames.resize(static_cast<size_t>(maxBlock));pitchFrames.resize(static_cast<size_t>(maxBlock));
+    modulationFrames.resize(static_cast<size_t>(maxBlock));pitchFrames.resize(static_cast<size_t>(maxBlock));expressionFrames.resize(static_cast<size_t>(maxBlock));
     envelopeGate.reset();
 }
 void ZaZamplerProcessor::releaseResources() {
+    log.add("Release audio resources");
     std::lock_guard<std::mutex> l(engineMutex);
     if (instrument) instrument->engine->panic();
     effects.reset();resetPerformance();
@@ -34,9 +37,11 @@ void ZaZamplerProcessor::load(const juce::File& root, const juce::String& bookma
       request.root=root.getFullPathName();request.bookmark=bookmark;request.relative=relative;
       bankNotes.clear();
       pending = true; loading.store(true); ready.store(false); status = "Loading " + relative + " ..."; }
+    log.add("Load requested: "+relative);
     cv.notify_one();
 }
 juce::Result ZaZamplerProcessor::openBank(const juce::File& file) {
+    log.add("Open bank: "+file.getFileName());
     try {
         if(file.getSize()>4*1024*1024)return juce::Result::fail("Bank is larger than 4 MiB");
         juce::MemoryBlock bytes;if(!file.loadFileAsData(bytes))return juce::Result::fail("Cannot read bank file");
@@ -65,6 +70,7 @@ void ZaZamplerProcessor::loadBankPatch(const juce::File& root,const juce::String
     std::shared_ptr<const ZamplerBank> bank;juce::String path;
     {std::lock_guard<std::mutex> lock(stateMutex);bank=bankData;path=bankPath;}
     if(!bank || slot<0 || static_cast<size_t>(slot)>=bank->patches.size())return;
+    log.add("Select bank slot "+juce::String(slot)+"; approximate="+juce::String(approximate?1:0));
     auto patch=std::make_shared<ZamplerPatch>(bank->patches[static_cast<size_t>(slot)]);
     auto translation=translateZamplerPatch(*patch);
     if(applySettings) {
@@ -111,11 +117,13 @@ void ZaZamplerProcessor::loadLoop() {
                 if(resolved.error.isNotEmpty())throw std::runtime_error(resolved.error.toStdString());
                 file=resolved.file;r.relative=file.getRelativePathFrom(root);
             }
+            if(file.hasFileExtension("rex;rx2;rcy")){candidate->rex=std::make_unique<RexImport>(file);file=candidate->rex->sfz;}
             if (!file.hasFileExtension("sfz") || !file.existsAsFile() || !candidate->engine->load(file.getFullPathName().toStdString())) {
                 result = "Load failed. Re-select the library folder and check SFZ/sample paths."; candidate.reset();
             } else {
                 result = file.getFileName() + " | " + juce::String(candidate->engine->regions()) + " regions, "
                        + juce::String(candidate->engine->samples()) + " preloaded samples";
+                if(candidate->rex)result=candidate->rex->description;
                 const auto unknown = candidate->engine->unknownOpcodes();
                 if (!unknown.empty()) result += " | Unsupported: " + juce::String::fromUTF8(unknown.c_str());
                 if(r.patch)result=juce::String::fromUTF8(r.patch->name.c_str())+(r.approximate?" [approximate FX] | ":" [SFZ only] | ")+result;
@@ -137,6 +145,7 @@ void ZaZamplerProcessor::loadLoop() {
             ready.store(instrument != nullptr); loading.store(false); status = result;
             panicRequested.store(true);
         }
+        log.add(result);
         loadDone.notify_all();
     }
 }
@@ -155,31 +164,53 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     std::unique_lock<std::mutex> l(engineMutex,std::defer_lock);
     if(isNonRealtime())l.lock();else l.try_lock();
     if (!l.owns_lock() || !instrument || loading.load()) {
+        if(!loggedUnavailable){log.audio(DiagnosticLog::unavailable);loggedUnavailable=true;}
         panicRequested.store(true); midi.clear(); peak.store(0);
         waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);return;
     }
+    loggedUnavailable=false;
     auto& engine = *instrument->engine;
-    if (panicRequested.exchange(false)) { engine.panic(); effects.reset();resetPerformance(); }
+    if (panicRequested.exchange(false)) { log.audio(DiagnosticLog::panic); engine.panic(); effects.reset();resetPerformance(); }
     engine.offline(isNonRealtime());
-    float bpm = 120.f;bool playing=false;
-    if (auto* ph = getPlayHead()) if (auto pos = ph->getPosition()) {if (auto tempo = pos->getBpm()) bpm = static_cast<float>(*tempo);playing=pos->getIsPlaying();}
+    float bpm = 120.f;bool playing=false,hasPosition=false;double ppq=0,barStart=0,barBeats=4;
+    if (auto* ph = getPlayHead()) if (auto pos = ph->getPosition()) {if (auto tempo = pos->getBpm()) bpm = static_cast<float>(*tempo);playing=pos->getIsPlaying();
+        if(auto beat=pos->getPpqPosition()){ppq=*beat;hasPosition=std::isfinite(ppq);}
+        if(auto ts=pos->getTimeSignature())if(ts->numerator>0 && ts->denominator>0)barBeats=ts->numerator*4.0/ts->denominator;
+        if(auto bar=pos->getPpqPositionOfLastBarStart())barStart=*bar;
+        else barStart=std::floor(ppq/barBeats)*barBeats;
+    }
+    bpm=std::isfinite(bpm)?juce::jlimit(20.f,400.f,bpm):120.f;
+    const bool seek=playing && hasPosition && (!hadPosition || !wasPlaying || std::abs(ppq-expectedPpq)>std::max(1e-6,2*bpm/(60*rate)));
+    hadPosition=playing && hasPosition;expectedPpq=ppq+frames*bpm/(60*rate);
+    if(playing!=wasPlaying)log.audio(DiagnosticLog::transport,playing?1:0);
+    if(seek)log.audio(DiagnosticLog::seek,static_cast<int>(juce::jlimit(-2000000.,2000000.,ppq)*1000));
     if(wasPlaying && !playing){engine.panic();effects.reset();resetPerformance();}wasPlaying=playing;
     const int channel = static_cast<int>(parameters.getRawParameterValue("channel")->load());
-    if (channel != lastChannel) { engine.panic(); effects.reset();resetPerformance();lastChannel = channel; }
-    const auto fx=readFxSettings(parameters);const auto lfoSettings=readLfoSettings(parameters);
+    if (channel != lastChannel) {log.audio(DiagnosticLog::channel,channel); engine.panic(); effects.reset();resetPerformance();lastChannel = channel; }
+    auto fx=readFxSettings(parameters);const auto lfoSettings=readLfoSettings(parameters);
     const auto envelopeSettings=readEnvelopeSettings(parameters);
     const auto matrixSettings=readMatrixSettings(parameters);const auto seq=readSequenceSettings(parameters);
     const int voiceMode=static_cast<int>(parameters.getRawParameterValue("voiceMode")->load());
     const float glide=parameters.getRawParameterValue("glide")->load();
-    if(seq.mode!=lastSequenceMode || voiceMode!=lastVoiceMode){engine.panic();effects.reset();resetPerformance();lastSequenceMode=seq.mode;lastVoiceMode=voiceMode;}
+    const int scope=static_cast<int>(parameters.getRawParameterValue("modScope")->load());
+    if(seq.mode!=lastSequenceMode || voiceMode!=lastVoiceMode || scope!=lastModScope){log.audio(DiagnosticLog::modes,seq.mode,voiceMode+2*scope);engine.panic();effects.reset();resetPerformance();lastSequenceMode=seq.mode;lastVoiceMode=voiceMode;lastModScope=scope;}
+    VoiceModSettings voiceSettings;voiceSettings.lfos=lfoSettings;voiceSettings.envelopes=envelopeSettings;
+    voiceSettings.matrix=matrixSettings;voiceSettings.filterMode=fx.filterMode;voiceSettings.cutoff=fx.cutoff;
+    voiceSettings.resonance=fx.resonance;voiceSettings.keytrack=fx.keytrack;voiceSettings.bpm=bpm;
+    if(scope)fx.filterMode=0;
+    if(seq.hostSync && playing && hasPosition)sequence.synchronize(seq,bpm,ppq,barStart,seek);
+    else sequence.freeClock();
+    int noteOns=0,noteOffs=0;
     auto event = midi.cbegin();
     // Hosts may submit larger-than-advertised buffers; split without allocation.
     for (int start=0; start<frames; start+=maxBlock) {
         const int n = juce::jmin(maxBlock,frames-start);
         engine.tempo(bpm);
+        if(instrument->rex){const unsigned char cc[]={0xb0,20,static_cast<unsigned char>(parameters.getRawParameterValue("rexPage")->load())};engine.midi(cc,3,0);}
         for(int i=0;i<n;++i) {
             EnvelopeEvent gateEvent;bool triggered=false;
             auto emit=[&](const unsigned char* data,int size) {
+                if(size>=3){if((data[0]&0xf0)==0x90 && data[2])++noteOns;else if((data[0]&0xf0)==0x80 || ((data[0]&0xf0)==0x90 && !data[2]))++noteOffs;}
                 engine.midi(data,size,i);performance.midi(data,size);
                 gateEvent.merge(envelopeGate.midi(data,size));
                 if(size>=3 && (data[0]&0xf0)==0x90 && data[2])triggered=true;
@@ -190,13 +221,22 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
                 if(m.numBytes>0 && (channel==0 || ((m.data[0]&15)+1)==channel))sequence.midi(m.data,m.numBytes,seq,generated);
                 ++event;
             }
+            if(seq.hostSync && playing && hasPosition) {
+                const double position=ppq+(start+i)*bpm/(60*rate);
+                if(position>=barStart+barBeats-0.5*bpm/(60*rate)) {
+                    barStart+=barBeats;sequence.synchronize(seq,bpm,position,barStart,false);
+                }
+            }
             sequence.tick(seq,bpm,generated);
-            modulationFrames[static_cast<size_t>(i)]=effects.modulationTick(fx,bpm,lfoSettings,triggered,envelopeSettings,gateEvent,matrixSettings,performance);
+            modulationFrames[static_cast<size_t>(i)]=scope?LfoModulation{}:effects.modulationTick(fx,bpm,lfoSettings,triggered,envelopeSettings,gateEvent,matrixSettings,performance);
+            expressionFrames[static_cast<size_t>(i)]=performance;
             pitchFrames[static_cast<size_t>(i)]=monoGlide.tick(voiceMode!=0,true)+modulationFrames[static_cast<size_t>(i)].pitchCents;
         }
-        engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0);
+        voiceSettings.expression=expressionFrames.data();voiceSettings.frames=n;
+        engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0,scope?&voiceSettings:nullptr);
         effects.process(out.getWritePointer(0,start),out.getWritePointer(1,start),n,fx,bpm,{},nullptr,{},nullptr,modulationFrames.data());
     }
+    if(noteOns || noteOffs)log.audio(DiagnosticLog::midi,noteOns,noteOffs);
     waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);
     midi.clear();
     const double repeats=fx.delayFeedback>0 ? 1.+std::ceil(std::log(0.0001)/std::log(juce::jlimit(0.0001f,0.95f,fx.delayFeedback))) : 1.;
@@ -210,12 +250,13 @@ void ZaZamplerProcessor::getStateInformation(juce::MemoryBlock& dest) {
     tree.setProperty("libraryRoot",catalog->root,nullptr);tree.setProperty("libraryBookmark",catalog->bookmark,nullptr);
     { std::lock_guard<std::mutex> l(stateMutex);
       tree.setProperty("root",request.root,nullptr); tree.setProperty("bookmark",request.bookmark,nullptr);
-      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",8,nullptr);
+      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",9,nullptr);
       tree.setProperty("bankData",bankBase64,nullptr);tree.setProperty("bankPath",bankPath,nullptr);
       tree.setProperty("bankSlot",request.bankSlot,nullptr);tree.setProperty("bankApproximate",request.approximate,nullptr); }
     if (auto xml = tree.createXml()) copyXmlToBinary(*xml,dest);
 }
 void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
+    log.add("Restore DAW state: "+juce::String(size)+" bytes");
     auto xml = getXmlFromBinary(data,size);
     if (!xml || !xml->hasTagName("QSamplerState")) return;
     auto tree = juce::ValueTree::fromXml(*xml);
@@ -265,4 +306,10 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new ZaZamplerP
 
 void ZaZamplerProcessor::resetPerformance() {
     envelopeGate.reset();sequence.reset();monoGlide.reset();performance={};
+}
+
+juce::String ZaZamplerProcessor::debugReport() {
+    juce::String result=zazamplerBuildInfo()+"\nStatus: "+statusText()+"\n\n"+log.snapshot()+"\nCurrent parameters:\n";
+    for(const auto& spec:parameterSpecs())result+=juce::String(spec.id)+"="+juce::String(parameters.getRawParameterValue(spec.id)->load())+"\n";
+    result+="\nImport details:\n"+importNotes();return result;
 }

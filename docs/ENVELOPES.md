@@ -1,3 +1,10 @@
+# 0.9での追加
+
+ENV ROUTINGのModulation scopeでGlobal（以下の旧動作）とPer voiceを切り替えられます。
+Per voiceでは各SFZリージョンのボイスに3基のADSRとLFOを持ち、別のノートの発音・リリースでリセットしません。サステインによる実際のボイスリリースに追従します。
+追加Amp ADSRはSFZのADSRへ乗算します。元のSFZボイスが終了した後までReleaseを延長することはできません。
+FXBのA/D/R時間は近似変換し、未対応のマトリクス変調先は警告します。
+
 # ADSR envelopes — 0.6
 
 Amp / Filter / Modの3基はSFZ合成後に作用する共通エンベロープ。

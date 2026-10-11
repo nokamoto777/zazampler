@@ -11,11 +11,16 @@ void Engine::prepare(double rate, int block) {
     sfizz_set_samples_per_block(synth.get(), block);
 }
 bool Engine::load(const std::string& path) { return sfizz_load_file(synth.get(), path.c_str()) && regions() > 0; }
-void Engine::render(float* l, float* r, int n, const float* pitchCents, bool absolutePitch) {
+void Engine::render(float* l, float* r, int n, const float* pitchCents, bool absolutePitch, const VoiceModSettings* voice) {
     sfizz_blob_t blob {reinterpret_cast<const uint8_t*>(pitchCents), pitchCents ? static_cast<uint32_t>(n * sizeof(float)) : 0u};
     sfizz_arg_t args[2] {}; args[0].b = &blob;args[1].i=absolutePitch?1:0;
     sfizz_send_message(synth.get(),client.get(),0,"/zazampler/pitch","bi",args);
+    sfizz_blob_t voiceBlob {reinterpret_cast<const uint8_t*>(voice), voice?static_cast<uint32_t>(sizeof(*voice)):0u};
+    sfizz_arg_t voiceArg {};voiceArg.b=&voiceBlob;
+    sfizz_send_message(synth.get(),client.get(),0,"/zazampler/voice","b",&voiceArg);
     float* channels[] = {l, r}; sfizz_render_block(synth.get(), channels, 2, n);
+    voiceBlob={nullptr,0};
+    sfizz_send_message(synth.get(),client.get(),0,"/zazampler/voice","b",&voiceArg);
     blob = {nullptr,0};
     sfizz_send_message(synth.get(),client.get(),0,"/zazampler/pitch","bi",args);
 }

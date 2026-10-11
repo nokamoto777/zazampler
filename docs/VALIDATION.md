@@ -1,3 +1,17 @@
+# 0.9 検証追記 — 2026-10-11
+
+Linux x86_64 / GCC 13のReleaseビルドで、engine_audio / bank_format / processor_stateが成功。
+ユーザー提供Colours FXBの128スロット・24参照も、新しい337パラメーター検証で読み込み成功。
+
+- 後から重ねた音が先行音のLFO／ADSRへ影響しないことを、2音の同時出力と単音出力の和で比較。
+- PPQ途中位置からのオンセット、37/128サンプルのブロック不変性、Tieの再トリガー抑止とリリース。
+- FXBの32行目までのsource/target/depth、LFO sync、Mono/Glide、ADSR、Arp基本設定。
+- 同時刻のログにも連番を付けて新しい順に表示。4096件のメモリ保持上限。
+- 自作PCMから生成したstereo REX2とlegacy REX/RCYの読み込み、スライス発音、一時キャッシュ削除、DAW状態からの再ロード。
+- 本家Zamplerとの聴感校正・全市販REXファイル・macOS DAW実機確認は含まない。
+
+以下は過去バージョンの検証記録。
+
 # 検証記録 — 2026-10-06
 
 ## 実施環境

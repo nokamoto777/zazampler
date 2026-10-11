@@ -129,11 +129,9 @@ LfoModulation Effects::modulationTick(const FxSettings& p,float bpm,const LfoSet
         mod.pan=juce::jlimit(-1.f,1.f,mod.pan+modEnvelopeRoutes[2].value);
         mod.resonance+=4.f*modEnvelopeRoutes[3].value;mod.driveDb+=24.f*modEnvelopeRoutes[4].value;mod.pitchCents+=1200.f*modEnvelopeRoutes[5].value;
 
-        const std::array<float,12> sources {0,mod.waves[0],mod.waves[1],mod.waves[2],eg.amp,eg.filter,eg.mod,
-            performance.velocity,(performance.note-60.f)/60.f,performance.wheel,performance.pressure,performance.bend};
         for(size_t row=0;row<matrix.size();++row) {
             const auto& route=matrix[row];
-            const float value=sources[static_cast<size_t>(juce::jlimit(0,11,route.source))]*route.depth;
+            const float value=matrixSource(route.source,mod,eg,performance)*route.depth;
             for(size_t t=0;t<6;++t)matrixRoutes[row][t].tick(route.target==static_cast<int>(t)+1?value:0.f,smoothing);
             mod.cutoffOctaves+=5.f*matrixRoutes[row][0].value;
             mod.amplitude*=std::pow(10.f,12.f*matrixRoutes[row][1].value/20.f);

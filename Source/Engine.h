@@ -1,5 +1,6 @@
 #pragma once
 #include <sfizz.h>
+#include "VoiceModulation.h"
 #include <memory>
 #include <string>
 
@@ -11,7 +12,7 @@ public:
     void prepare(double sampleRate, int blockSize);
     bool load(const std::string& path);
     void midi(const unsigned char* data, int size, int offset);
-    void render(float* left, float* right, int frames, const float* pitchCents = nullptr, bool absolutePitch = false);
+    void render(float* left, float* right, int frames, const float* pitchCents = nullptr, bool absolutePitch = false, const VoiceModSettings* voice = nullptr);
     void panic();
     void tempo(float bpm);
     void offline(bool enabled);

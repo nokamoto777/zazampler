@@ -5,14 +5,14 @@
 #include <cstdint>
 
 struct PerformanceFrame {
-    float note=60,velocity=0,wheel=0,pressure=0,bend=0;
+    float note=60,velocity=0,wheel=0,pressure=0,bend=0,foot=0,expression=1;
     void midi(const unsigned char* d,int n) {
         if(n<2)return;
         const int type=d[0]&0xf0,a=d[1]&127,b=n>2?d[2]&127:0;
         if(type==0x90 && n>=3 && b){note=static_cast<float>(a);velocity=b/127.f;}
         if(type==0xd0)pressure=a/127.f;
         if(type==0xe0 && n>=3)bend=((a|(b<<7))-8192)/8192.f;
-        if(type==0xb0 && n>=3){if(a==1)wheel=b/127.f;if(a==121){wheel=pressure=bend=0;}}
+        if(type==0xb0 && n>=3){if(a==1)wheel=b/127.f;if(a==4)foot=b/127.f;if(a==11)expression=b/127.f;if(a==121){wheel=pressure=bend=foot=0;expression=1;}}
     }
 };
 // One MIDI part, same Omni-channel merging convention as sfizz and EnvelopeGate.
@@ -59,19 +59,20 @@ struct SequenceSettings {
     int mode=0,division=2,length=8,octaves=1; // Off, Up, Down, Step
     int rhythm=0,hits=5,rotation=0,noteOrder=0;
     float swing=0.f,gate=0.7f;
+    bool hostSync=false;
+    std::array<bool,8> ties{};
     std::array<int,8> notes {0,0,7,0,12,7,3,7};
     std::array<float,8> velocities {1,1,1,1,1,1,1,1};
 };
 class NoteSequence {
 public:
     void prepare(double sr){rate=sr;reset();}
-    void reset(){keys.reset();remaining=gateRemaining=0;step=0;noteStep=0;sounding=-1;active=false;lastRhythm=0;}
+    void reset(){keys.reset();remaining=gateRemaining=0;step=0;noteStep=0;sounding=-1;active=false;lastRhythm=0;hostLocked=false;clockReset=false;tieNext=false;}
     static bool rhythmHit(int position,int hits,int rotation) {
         const int slot=((position-std::clamp(rotation,0,15))%16+16)%16;
         return (slot*std::clamp(hits,1,16))%16<std::clamp(hits,1,16);
     }
-    // Literal 16-step maps supplied by the user. Pattern 13 intentionally has
-    // 12 hits: preserve the supplied positions rather than inventing a 13th.
+    // Literal 16-step maps supplied by the user, including the corrected 13-hit map.
     static bool fixedPatternHit(int position,int pattern,int rotation) {
         static constexpr const char* maps[]={
             "1000000000000000", // 1
@@ -86,7 +87,7 @@ public:
             "1011011011011010", // 10
             "1011011011011011", // 11
             "1011101110111011", // 12
-            "1011110111011101", // 13
+            "1011110111011111", // 13
             "1011111110111111", // 14
             "1011111111111111", // 15
             "1111111111111111", // 16
@@ -105,6 +106,27 @@ public:
         static constexpr double beats[]={0.125,0.25,0.5,1./3.,0.75,1.,1.5,2.};
         return sr*60./std::clamp(std::isfinite(bpm)?static_cast<double>(bpm):120.,20.,400.)*beats[std::clamp(p.division,0,7)];
     }
+    // Re-anchor at every host block. PPQ is a quarter-note position; barStart
+    // allows 3/4, 5/4, etc. to restart the 16-step figure on each actual bar.
+    void synchronize(const SequenceSettings& p,float bpm,double ppq,double barStart,bool discontinuity) {
+        hostLocked=p.hostSync && std::isfinite(ppq) && std::isfinite(barStart);
+        if(!hostLocked)return;
+        clockReset=clockReset || discontinuity;
+        const double samplesPerBeat=rate*60/std::clamp(static_cast<double>(bpm),20.,400.);
+        double beat=ppq-barStart;
+        if(beat<0)beat=0;
+        const double unit=p.rhythm?0.25:period(p,rate,bpm)/samplesPerBeat;
+        int next=static_cast<int>(std::floor(beat/unit));
+        auto boundary=[&](int index){return index*unit+(p.rhythm && index%2?p.swing*unit:0.);};
+        while(boundary(next)<beat-0.5/samplesPerBeat)++next;
+        while(next>0 && boundary(next-1)>=beat-0.5/samplesPerBeat)--next;
+        remaining=std::max(0.,std::round((boundary(next)-beat)*samplesPerBeat));
+        step=p.rhythm?next%16:next;
+        noteStep=0;
+        if(p.rhythm){for(int i=0;i<next;++i)if(gridHit(i,p))++noteStep;}
+        else noteStep=static_cast<uint64_t>(next);
+    }
+    void freeClock(){hostLocked=false;}
     template<class Emit> void midi(const unsigned char* d,int n,const SequenceSettings& p,Emit&& emit) {
         if(!p.mode){emit(d,n);return;}
         keys.midi(d,n);
@@ -116,16 +138,18 @@ public:
     template<class Emit> void tick(const SequenceSettings& p,float bpm,Emit&& emit) {
         if(!p.mode)return;
         auto off=[&]{if(sounding>=0){unsigned char d[]={0x80,static_cast<unsigned char>(sounding),0};emit(d,3);sounding=-1;}};
-        if(p.rhythm!=lastRhythm){off();active=false;remaining=0;step=0;noteStep=0;lastRhythm=p.rhythm;}
-        if(!keys.count()){off();active=false;remaining=0;step=0;noteStep=0;return;}
-        if(!active){active=true;remaining=0;step=0;noteStep=0;}
-        if(sounding>=0 && gateRemaining<=0)off();
+        if(p.rhythm!=lastRhythm){off();active=false;tieNext=false;if(!hostLocked){remaining=0;step=0;noteStep=0;}lastRhythm=p.rhythm;}
+        if(clockReset){off();active=false;tieNext=false;clockReset=false;}
+        if(!keys.count()){off();active=false;tieNext=false;if(!hostLocked){remaining=0;step=0;noteStep=0;}else --remaining;return;}
+        if(!active){active=true;if(!hostLocked){remaining=0;step=0;noteStep=0;}}
+        if(sounding>=0 && !tieNext && gateRemaining<=0)off();
         if(remaining<=0) {
             const bool patterned=p.rhythm!=0;
             const auto duration=patterned?gridDuration(p,rate,bpm,step):period(p,rate,bpm);
             const bool hit=!patterned || gridHit(step,p);
             if(hit) {
-                off();
+                const bool continuing=tieNext && sounding>=0;
+                if(!continuing)off();
                 const auto indexStep=patterned?noteStep:static_cast<uint64_t>(step);
                 const int length=std::clamp(p.length,1,8),slot=static_cast<int>(indexStep%static_cast<unsigned>(length));
                 int key=keys.latest();
@@ -137,10 +161,11 @@ public:
                     key=(p.noteOrder?keys.nthPlayed(index%count):keys.nth(index%count))+12*(index/count);
                 }
                 const int velocity=static_cast<int>(std::round(keys.velocity(keys.latest())*std::clamp(p.velocities[slot],0.f,1.f)));
-                if(key>=0 && key<=127 && velocity>0){unsigned char d[]={0x90,static_cast<unsigned char>(key),static_cast<unsigned char>(std::clamp(velocity,1,127))};emit(d,3);sounding=key;}
+                if(!continuing && key>=0 && key<=127 && velocity>0){unsigned char d[]={0x90,static_cast<unsigned char>(key),static_cast<unsigned char>(std::clamp(velocity,1,127))};emit(d,3);sounding=key;}
                 double gap=duration;
                 if(patterned)for(int offset=1;offset<16 && !gridHit(step+offset,p);++offset)
                     gap+=gridDuration(p,rate,bpm,step+offset);
+                tieNext=p.ties[slot] && sounding>=0;
                 gateRemaining=std::max(1.,gap*std::clamp(p.gate,0.05f,0.95f));
                 ++noteStep;
             }
@@ -151,7 +176,7 @@ public:
         --remaining;--gateRemaining;
     }
 private:
-    NoteStack keys;double rate=44100,remaining=0,gateRemaining=0;int step=0,sounding=-1,lastRhythm=0;uint64_t noteStep=0;bool active=false;
+    NoteStack keys;double rate=44100,remaining=0,gateRemaining=0;int step=0,sounding=-1,lastRhythm=0;uint64_t noteStep=0;bool active=false,hostLocked=false,clockReset=false,tieNext=false;
 };
 class MonoGlide {
 public:

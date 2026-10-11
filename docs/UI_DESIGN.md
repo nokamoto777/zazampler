@@ -17,7 +17,7 @@ Zampler RX / 3系の「左LFO・中央LCD・右Filter/Output/Envelope・下部Ke
 連続値はノブの上下ドラッグ／右クリックで数値入力／ダブルクリック初期化。常時数値欄をなくし、ホバー／ドラッグ時のポップアップで値を確認。ホストへのparameter attachmentを使用。
 
 KeytrackとGlideを実装。GlideはENV ROUTINGのVoice mode = Monoで動作。ADSRとFilter Env量も実装済み。
-中央のLFO ROUTINGは3基の変調先・深さ・同期・リトリガーを設定するページ。MATRIXページに4系統の変調、SEQUENCEページにUp/Downアルペジオと8ステップ編集を追加。本家FXB設定の再現とは別機能。
+中央のLFO ROUTINGは3基の変調先・深さ・同期・リトリガーを設定するページ。MATRIXページに32行のスクロール式変調、SEQUENCEページにUp/Downアルペジオと8ステップ編集を追加。0.9では確認済みFXB設定を近似取り込み。
 0.5では共通LFO 3基を音声処理へ追加し、左側の波形／Rate／Skew／Fadeノブを有効化。
 
 ## スクリーンショット再生成
