@@ -26,6 +26,9 @@ static void wait(ZaZamplerProcessor& p){
 #include "WaveformChecks.h"
 #include "AdvancedChecks.h"
 int main(int argc,char** argv){
+    const auto testCache=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("zazampler-test-cache",{},false);
+    setenv("ZAZAMPLER_CACHE_DIR",testCache.getFullPathName().toRawUTF8(),1);
+    struct CacheCleanup {juce::File file;~CacheCleanup(){file.deleteRecursively();}} cacheCleanup{testCache};
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
         if(argc==3 && (juce::String(argv[1])=="--snapshot-about" || juce::String(argv[1])=="--snapshot-debug")) {
@@ -37,6 +40,7 @@ int main(int argc,char** argv){
             graphics.fillAll(juce::Colour(0xff252525));panel->paintEntireComponent(graphics,true);
             auto output=juce::File(argv[2]).createOutputStream();check(output!=nullptr,"snapshot output");juce::PNGImageFormat png;check(png.writeImageToStream(image,*output),"snapshot write");return 0;
         }
+        if(argc==5 && juce::String(argv[1])=="--supplied-bank") {librarychecks::supplied(juce::File(argv[2]),juce::File(argv[3]),juce::File(argv[4]));return 0;}
         if(argc==4 && juce::String(argv[1])=="--snapshot-browser") {librarychecks::run(juce::File(argv[2]),juce::File(argv[3]));return 0;}
         if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-rhythm" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
             ZaZamplerProcessor p;p.prepareToPlay(48000,128);
@@ -81,7 +85,7 @@ int main(int argc,char** argv){
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
         advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
-        librarychecks::run(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
+        librarychecks::run(root);librarychecks::cachingAndReload(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
         ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
         juce::MemoryBlock empty;p.getStateInformation(empty);
         p.load(root,{},"Sine.sfz");wait(p);

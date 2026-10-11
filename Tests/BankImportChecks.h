@@ -8,7 +8,7 @@ inline void run(const juce::File& demo) {
     const auto data=bankfixture::make();const auto bank=root.getChildFile("Synthetic.fxb");
     check(bank.replaceWithData(data.data(),data.size()),"write bank fixture");
     const auto parsed=ZamplerBank::parse(data.data(),data.size());
-    check(resolveBankSample(parsed.patches[0],bank,root).error.contains("Missing SFZ"),"missing sample report");
+    check(resolveBankSample(parsed.patches[0],bank,root).error.contains("Missing sample instrument"),"missing sample report");
     const auto a=root.getChildFile("a"),b=root.getChildFile("b");a.createDirectory();b.createDirectory();
     demo.getChildFile("Sine.sfz").copyFileTo(a.getChildFile("Sine.sfz"));
     demo.getChildFile("tone.wav").copyFileTo(a.getChildFile("tone.wav"));

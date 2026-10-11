@@ -1,6 +1,7 @@
 #include "BankImport.h"
 #include <cmath>
 #include <filesystem>
+#include <chrono>
 BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
     BankConversion result;const auto& p=patch.parameters;
     for(const auto& spec:parameterSpecs())if(juce::String(spec.id)!="channel")result.settings.emplace_back(spec.id,spec.initial);
@@ -99,46 +100,55 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
     result.warnings.add("LFO/envelope/glide/keytrack and supported matrix routes imported with approximate curves. Per-voice envelopes multiply the SFZ envelopes; source sample/voice lifetime still applies. LFO shape order and synced division scaling need auditory calibration against Zampler.");
     return result;
 }
-SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,const juce::File& root) {
+SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,const juce::File& root,
+    const juce::Array<juce::File>* index,const std::function<bool()>& cancelled) {
     if(p.sampleFile.empty())return {{},"This slot has no sample reference."};
     const auto ref=juce::String::fromUTF8(p.sampleFile.c_str()).replaceCharacter('\\','/');
     const auto name=ref.fromLastOccurrenceOf("/",false,false);
     if(!name.endsWithIgnoreCase(".sfz") && !name.endsWithIgnoreCase(".rex") && !name.endsWithIgnoreCase(".rx2") && !name.endsWithIgnoreCase(".rcy"))return {{},"The preset references an unsupported instrument type."};
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+    auto interrupted=[&]{return (cancelled && cancelled()) || std::chrono::steady_clock::now()>deadline;};
+    namespace fs=std::filesystem;std::error_code ec;
+    const auto canonicalRoot=fs::weakly_canonical(fs::u8path(root.getFullPathName().toStdString()),ec);
+    if(ec)return {{},"Library folder is unavailable."};
     auto inside=[&](const juce::File& f){
-        namespace fs=std::filesystem;std::error_code error;
-        const auto canonicalRoot=fs::weakly_canonical(fs::u8path(root.getFullPathName().toStdString()),error);if(error)return false;
+        std::error_code error;
         const auto canonicalFile=fs::weakly_canonical(fs::u8path(f.getFullPathName().toStdString()),error);if(error)return false;
         const auto relative=canonicalFile.lexically_relative(canonicalRoot);
         return !relative.empty() && !relative.is_absolute() && *relative.begin()!=".." && f.existsAsFile();
     };
-    juce::Array<juce::File> exact;
-    auto add=[&](const juce::File& f){if(inside(f) && !exact.contains(f))exact.add(f);};
-    // Never follow the bank author's absolute path automatically.
+    if(interrupted())return {{},"Sample search cancelled or timed out."};
+    // Prefer the saved relative reference, including a bank-named sample folder.
     if(!juce::File::isAbsolutePath(ref) && !ref.contains("../")) {
-        add(bank.getParentDirectory().getChildFile(ref));
-        add(bank.getParentDirectory().getChildFile(bank.getFileNameWithoutExtension()).getChildFile(ref));
+        juce::Array<juce::File> exact;
+        for(const auto& f:{bank.getParentDirectory().getChildFile(ref),bank.getParentDirectory().getChildFile(bank.getFileNameWithoutExtension()).getChildFile(ref)})
+            if(inside(f) && !exact.contains(f))exact.add(f);
+        if(exact.size()==1)return {exact[0],{}};
+        if(exact.size()>1)return {{},"Ambiguous sample references; select a narrower library folder."};
     }
-    if(exact.size()==1)return {exact[0],{}};
-    if(exact.size()>1)return {{},"Ambiguous SFZ references; select a narrower library folder."};
-    juce::Array<juce::File> matches;
-    auto search=[&](const juce::File& directory) {
-        for(const auto& entry:juce::RangedDirectoryIterator(directory,true,"*",juce::File::findFiles,juce::File::FollowSymlinks::no))
-            if(entry.getFile().getFileName().equalsIgnoreCase(name) && inside(entry.getFile()))matches.add(entry.getFile());
-    };
-    // Banks in a collection often reuse names such as Bass.sfz. Prefer this
-    // bank's own directory before considering other libraries under the root.
-    const auto bankDirectory=bank.getParentDirectory();
-    if(bankDirectory==root || bankDirectory.isAChildOf(root))search(bankDirectory);
-    if(matches.size()==1)return {matches[0],{}};
-    if(matches.size()>1)return {{},"Multiple files named "+name+" in this bank folder; select a narrower sample folder."};
-    if(bankDirectory!=root) {
-        if(!juce::File::isAbsolutePath(ref) && !ref.contains("../")) {
-            const auto rootRelative=root.getChildFile(ref);
-            if(inside(rootRelative))return {rootRelative,{}};
+    juce::Array<juce::File> candidates;
+    auto consider=[&](const juce::File& f){if(f.getFileName().equalsIgnoreCase(name) && inside(f) && !candidates.contains(f))candidates.add(f);};
+    if(index) {
+        for(const auto& f:*index){if(interrupted())return {{},"Sample search cancelled or timed out."};consider(f);}
+    } else {
+        // Unindexed direct imports have a bounded, cancellable fallback. Never
+        // leave all subsequent preset requests behind a complete library walk.
+        int visited=0;
+        for(const auto& entry:juce::RangedDirectoryIterator(root,true,"*",juce::File::findFiles,juce::File::FollowSymlinks::no)) {
+            if(interrupted() || ++visited>20000)return {{},"Sample search limit reached. Choose LIBRARY FOLDER and RESCAN to build the index."};
+            consider(entry.getFile());
         }
-        search(root);
     }
-    if(matches.size()==1)return {matches[0],{}};
-    if(matches.size()>1)return {{},"Multiple files named "+name+"; select the correct library subfolder."};
-    return {{},"Missing SFZ: "+name+". Select the folder containing this bank's SFZ files and samples."};
+    // FXPs may live in Presets/, with sibling Samples/. Widen one ancestor at a
+    // time, stopping at the explicitly permitted root; do not cross libraries.
+    for(auto directory=bank.getParentDirectory();directory==root || directory.isAChildOf(root);directory=directory.getParentDirectory()) {
+        juce::Array<juce::File> matches;
+        for(const auto& f:candidates)if(f.isAChildOf(directory))matches.add(f);
+        if(matches.size()==1)return {matches[0],{}};
+        if(matches.size()>1)return {{},"Multiple files named "+name+" in this library; select a narrower sample folder."};
+        if(directory==root)break;
+    }
+    if(candidates.size()==1)return {candidates[0],{}};
+    if(candidates.size()>1)return {{},"Multiple files named "+name+"; select the correct library subfolder."};
+    return {{},"Missing sample instrument: "+name+". Reconnect the library drive, or RESCAN after adding files. FXB/FXP do not contain sample audio."};
 }

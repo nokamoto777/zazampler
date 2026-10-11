@@ -83,4 +83,63 @@ inline void run(const juce::File& demo,const juce::File& screenshot={}) {
     p.libraries.scan(root.getFullPathName(),{});p.libraries.scan(b.getFullPathName(),{});waitScan(p.libraries);
     check(p.libraries.snapshot()->root==b.getFullPathName() && p.libraries.snapshot()->entries.size()==1,"latest scan supersedes previous root");
 }
+inline void supplied(const juce::File& bank,const juce::File& patch,const juce::File& demo) {
+    const auto root=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("zazampler-bank-layout",{},false);
+    struct Cleanup{juce::File f;~Cleanup(){f.deleteRecursively();}} cleanup{root};
+    root.getChildFile("Presets").createDirectory();root.getChildFile("Samples").createDirectory();
+    bank.copyFileTo(root.getChildFile(bank.getFileName()));patch.copyFileTo(root.getChildFile("Presets").getChildFile(patch.getFileName()));
+    demo.getChildFile("Sine.sfz").copyFileTo(root.getChildFile("Samples/DX-SlapBass2.sfz"));
+    demo.getChildFile("tone.wav").copyFileTo(root.getChildFile("Samples/tone.wav"));
+    ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
+    p.libraries.scan(root.getFullPathName(),{});waitScan(p.libraries);const auto catalog=p.libraries.snapshot();
+    check(catalog->errors.isEmpty() && catalog->entries.size()==1 && catalog->entries[0].patches.size()==1,"supplied FXB and subfolder FXP grouped");
+    check(p.openLibrary(catalog->entries[0]).wasOk(),"supplied bank group opens");
+    check(p.getBank()->patches.size()>=7 && p.getBank()->patches[0].name=="DX-SlapBass2","supplied bank presets parsed");
+    p.loadBankPatch(root,{},0,false);wait(p);
+    juce::AudioBuffer<float> audio(2,2048);juce::MidiBuffer midi;midi.addEvent(juce::MidiMessage::noteOn(1,69,(juce::uint8)100),0);p.processBlock(audio,midi);
+    check(audio.getMagnitude(0,0,2048)>0.001f,"supplied bank reference resolves sibling sample folder using synthetic audio");
+    juce::MemoryBlock state;p.getStateInformation(state);
+    ZaZamplerProcessor recalled;recalled.prepareToPlay(48000,128);recalled.setStateInformation(state.getData(),static_cast<int>(state.getSize()));wait(recalled);
+    check(recalled.getBank()->patches.size()==p.getBank()->patches.size() && recalled.selectedBankSlot()==0,"group bank and preset survive state recall");
+    std::cout<<"PASS: supplied Digital Bass FXB / DX-SlapBass2 FXP grouping, sample resolution and state recall (synthetic audio)\n";
+}
+inline void cachingAndReload(const juce::File& demo) {
+    const auto root=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("zazampler-cache-regression",{},false);
+    struct Cleanup{juce::File f;~Cleanup(){f.deleteRecursively();}} cleanup{root};
+    const auto folder=root.getChildFile("Library"),cache=root.getChildFile("Cache");folder.createDirectory();
+    const auto bytes=bankfixture::make();folder.getChildFile("Bank.fxb").replaceWithData(bytes.data(),bytes.size());
+    demo.getChildFile("Sine.sfz").copyFileTo(folder.getChildFile("Sine.sfz"));demo.getChildFile("tone.wav").copyFileTo(folder.getChildFile("tone.wav"));
+    {LibraryCatalog c(cache);c.scan(folder.getFullPathName(),{});waitScan(c);check(c.snapshot()->entries.size()==1,"initial cache scan");}
+    // Add a bank after scanning: restoration must not enumerate the directory.
+    folder.getChildFile("New.fxb").replaceWithData(bytes.data(),bytes.size());
+    {LibraryCatalog c(cache);check(c.snapshot()->cached && !c.snapshot()->scanning && c.snapshot()->entries.size()==1,"new instance restores remembered folder and index without scanning");
+     c.scan(folder.getFullPathName(),{});waitScan(c);check(c.snapshot()->entries.size()==2,"explicit rescan discovers new bank");}
+    {LibraryCatalog c(cache);check(c.snapshot()->entries.size()==2,"updated cache survives restart");}
+    folder.getChildFile("Bank.fxb").deleteFile();folder.getChildFile("New.fxb").deleteFile();
+    // A standalone FXP folder is represented by one bank entry.
+    auto fxp=std::vector<uint8_t>(100+12780,0);std::copy(bytes.begin(),bytes.begin()+28,fxp.begin());
+    std::memcpy(fxp.data()+8,"FPCh",4);bankfixture::be(fxp,4,static_cast<uint32_t>(fxp.size()-8));bankfixture::be(fxp,24,337);bankfixture::be(fxp,56,static_cast<uint32_t>(fxp.size()-60));
+    std::copy(bytes.begin()+160,bytes.begin()+200,fxp.begin()+60);bankfixture::le(fxp,64,1);std::copy(bytes.begin()+200,bytes.begin()+200+12780,fxp.begin()+100);
+    folder.getChildFile("A.fxp").replaceWithData(fxp.data(),fxp.size());
+    ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.libraries.scan(folder.getFullPathName(),{});waitScan(p.libraries);
+    check(p.libraries.snapshot()->entries.size()==1 && p.libraries.snapshot()->entries[0].file==folder,"FXP-only folder grouped");
+    check(p.openLibrary(p.libraries.snapshot()->entries[0]).wasOk(),"FXP-only group opens");p.loadBankPatch(folder,{},0,false);wait(p);
+    // No successful load may be required to recover from a missing selection.
+    p.load(folder,{},"Missing.sfz");wait(p);check(p.statusText().contains("Previous instrument retained"),"failed load retains playable instrument");
+    juce::AudioBuffer<float> audio(2,128);juce::MidiBuffer midi;
+    midi.addEvent(juce::MidiMessage::noteOn(1,69,(juce::uint8)127),0);p.processBlock(audio,midi);
+    for(int i=0;i<30;++i) {
+        p.load(folder,{},"Missing.sfz");p.load(folder,{},"Sine.sfz");
+        const auto end=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+        while(p.isLoading() && std::chrono::steady_clock::now()<end){p.processBlock(audio,midi);std::this_thread::sleep_for(std::chrono::milliseconds(1));}
+        wait(p);midi.addEvent(juce::MidiMessage::noteOn(1,69,(juce::uint8)127),0);p.processBlock(audio,midi);
+    }
+    for(int i=0;i<4;++i)p.processBlock(audio,midi);
+    check(audio.getMagnitude(0,0,128)>0.0001f,"repeated live preset swaps still produce sound");
+    auto patch=ZamplerBank::parse(bytes.data(),bytes.size()).patches[0];patch.sampleFile="absent.sfz";
+    check(resolveBankSample(patch,folder.getChildFile("A.fxp"),folder,&p.libraries.snapshot()->instruments,[]{return true;}).error.contains("cancelled"),"sample lookup can be superseded");
+    check(p.debugReport().contains("Loader:") && p.debugReport().contains("Loading sample data:"),"loader stages included in debug report");
+    std::cout<<"PASS: persistent catalog, explicit rescan, FXP-only banks and 30 live reloads\n";
+}
+
 }

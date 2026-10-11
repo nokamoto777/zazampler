@@ -36,7 +36,7 @@ private:
                 case channel:message="MIDI channel="+juce::String(e.a);break;
                 case modes:message="Sequence mode="+juce::String(e.a)+", voice/scope="+juce::String(e.b);break;
                 case midi:message="MIDI block: note-ons="+juce::String(e.a)+", note-offs="+juce::String(e.b);break;
-                case unavailable:message="Audio skipped: instrument loading/unavailable or engine busy";break;}
+                case unavailable:message="Audio skipped: no instrument available or engine busy";break;}
             append({e.time,message,e.id});}};
         consume(first,count);consume(second,rest);fifo.finishedRead(count+rest);
     }

@@ -38,6 +38,7 @@ public:
     void load(const juce::File& root, const juce::String& bookmark, const juce::String& relative);
     juce::String statusText() const;
     juce::Result openBank(const juce::File&);
+    juce::Result openLibrary(const LibraryCatalog::Entry&);
     void clearBank();
     std::shared_ptr<const ZamplerBank> getBank() const;
     std::pair<juce::String,juce::String> libraryLocation() const;
@@ -64,9 +65,16 @@ private:
         juce::String root,bookmark,relative;uint64_t serial=0;
         std::shared_ptr<const ZamplerPatch> patch;
         juce::File bankFile;int bankSlot=-1;bool approximate=false;
-    } request;
+    } request,activeRequest;
+    bool lastLoadSucceeded=false;
     std::shared_ptr<const ZamplerBank> bankData;
     juce::String bankBase64,bankPath,bankNotes;
+    juce::ValueTree bankArchive {"BankArchive"};
+    std::vector<juce::File> patchOrigins;
+    juce::String loadStage="Idle";
+    double loadStarted=0;
+    void setLoadStage(uint64_t,const juce::String&);
+    void restoreBankArchive(const juce::ValueTree&,const juce::String&);
     // Destruction order: free streaming synth before closing its directory scope.
     struct Instrument { std::unique_ptr<RexImport> rex; std::unique_ptr<FolderAccess> access; std::unique_ptr<Engine> engine; };
     std::unique_ptr<Instrument> instrument;

@@ -249,7 +249,7 @@ void ZaZamplerEditor::refreshLibraries() {
     libraries.setEnabled(!catalog->scanning && !catalog->entries.empty());
     scanButton.setEnabled(catalog->root.isNotEmpty() && !catalog->scanning);
     libraries.setTextWhenNothingSelected(catalog->scanning?"Scanning libraries...":catalog->entries.empty()?"Choose LIBRARY FOLDER to find banks":"Select a library...");
-    libraryStatus.setText(catalog->scanning?"Scanning bank metadata...":juce::String(static_cast<int>(catalog->entries.size()))+" banks | "+juce::String(catalog->errors.size())+" errors",juce::dontSendNotification);
+    libraryStatus.setText(catalog->scanning?"Scanning bank metadata...":juce::String(static_cast<int>(catalog->entries.size()))+" banks"+(catalog->cached?juce::String(" (cached)"):juce::String())+" | "+juce::String(catalog->errors.size())+" errors",juce::dontSendNotification);
     libraryStatus.setTooltip(catalog->root+"\n"+catalog->errors.joinIntoString("\n"));
     if(!catalog->scanning && catalog->root.isNotEmpty()) {
         // Keep the parent scope open for bank browsing and streaming instruments.
@@ -272,7 +272,7 @@ void ZaZamplerEditor::selectLibrary() {
     const int index=libraries.getSelectedId()-1;
     if(!visibleCatalog || !juce::isPositiveAndBelow(index,static_cast<int>(visibleCatalog->entries.size())))return;
     folderAccess=std::make_unique<FolderAccess>(visibleCatalog->root.toStdString(),visibleCatalog->bookmark.toStdString());
-    const auto result=processor.openBank(visibleCatalog->entries[static_cast<size_t>(index)].file);
+    const auto result=processor.openLibrary(visibleCatalog->entries[static_cast<size_t>(index)]);
     if(result.failed()) {
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Cannot open library",result.getErrorMessage());return;
     }
