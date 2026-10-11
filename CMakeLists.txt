@@ -13,7 +13,10 @@ endif()
 string(TIMESTAMP ZAZAMPLER_BUILD_TIME "%Y-%m-%d %H:%M:%S" UTC)
 configure_file(Source/BuildInfo.h.in generated/BuildInfo.h @ONLY)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated")
-set(CMAKE_CXX_STANDARD 17)
+# sfizz creates a CXX_STANDARD cache entry with a C++14 default. Seed the
+# cache before adding it so its parser, wrappers and dependencies share the
+# C++17 filesystem/optional/string_view ABI used by the patched renderer.
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard for ZaZampler and dependencies" FORCE)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(ZAZAMPLER_CORE_ONLY "Build engine regression test without GUI dependencies" OFF)
@@ -41,9 +44,6 @@ else()
   set(zazampler_sfizz "${sfizz_SOURCE_DIR}")
 endif()
 include(scripts/patch-sfizz.cmake)
-# The patched voice renderer includes ZaZampler's C++17 modulation headers.
-# sfizz sets its own C++14 default, independently of our parent directory.
-target_compile_features(sfizz_internal PRIVATE cxx_std_17)
 set(ZAZAMPLER_VELOCILOOPS_PATH "" CACHE PATH "Optional pinned VelociLoops checkout")
 set(VELOCILOOPS_ENABLE_SHARED OFF CACHE BOOL "" FORCE)
 set(VELOCILOOPS_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
