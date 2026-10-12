@@ -36,7 +36,7 @@ void ZaZamplerProcessor::load(const juce::File& root, const juce::String& bookma
       const auto serial=request.serial+1;request={};request.serial=serial;
       request.root=root.getFullPathName();request.bookmark=bookmark;request.relative=relative;
       bankNotes.clear();
-      pending = true; loading.store(true); ready.store(false); status = "Loading " + relative + " ..."; }
+      pending = true; loading.store(true); status = "Loading " + relative + " ..."; }
     log.add("Load requested: "+relative);
     cv.notify_one();
 }
@@ -50,19 +50,20 @@ juce::Result ZaZamplerProcessor::openBank(const juce::File& file) {
         auto encoded=bytes.toBase64Encoding();
         std::lock_guard<std::mutex> lock(stateMutex);
         bankData=std::move(parsed);bankBase64=encoded;bankPath=file.getFullPathName();request.bankSlot=-1;
+        bankArchive=juce::ValueTree("BankArchive");patchOrigins.assign(bankData->patches.size(),file);
         status="Bank opened. Select its samples folder and a preset.";
         return juce::Result::ok();
     } catch(const std::exception& e){return juce::Result::fail(e.what());}
 }
 void ZaZamplerProcessor::clearBank() {
     std::lock_guard<std::mutex> lock(stateMutex);
-    bankData.reset();bankBase64.clear();bankPath.clear();bankNotes.clear();
+    bankData.reset();bankBase64.clear();bankPath.clear();bankNotes.clear();patchOrigins.clear();bankArchive=juce::ValueTree("BankArchive");
     // A queued instrument load keeps its immutable patch snapshot.
 }
 std::shared_ptr<const ZamplerBank> ZaZamplerProcessor::getBank() const {std::lock_guard<std::mutex> lock(stateMutex);return bankData;}
 std::pair<juce::String,juce::String> ZaZamplerProcessor::libraryLocation() const {std::lock_guard<std::mutex> lock(stateMutex);return {request.root,request.bookmark};}
 juce::String ZaZamplerProcessor::currentBankPath() const {std::lock_guard<std::mutex> lock(stateMutex);return bankPath;}
-juce::String ZaZamplerProcessor::currentInstrumentPath() const {std::lock_guard<std::mutex> lock(stateMutex);return request.root.isNotEmpty() && request.relative.isNotEmpty()?juce::File(request.root).getChildFile(request.relative).getFullPathName():juce::String();}
+juce::String ZaZamplerProcessor::currentInstrumentPath() const {std::lock_guard<std::mutex> lock(stateMutex);return activeRequest.root.isNotEmpty() && activeRequest.relative.isNotEmpty()?juce::File(activeRequest.root).getChildFile(activeRequest.relative).getFullPathName():juce::String();}
 juce::String ZaZamplerProcessor::importNotes() const {std::lock_guard<std::mutex> lock(stateMutex);return bankNotes;}
 int ZaZamplerProcessor::selectedBankSlot() const {std::lock_guard<std::mutex> lock(stateMutex);return request.bankSlot;}
 bool ZaZamplerProcessor::bankUsesApproximateFx() const {std::lock_guard<std::mutex> lock(stateMutex);return request.bankSlot<0 || request.approximate;}
@@ -88,11 +89,11 @@ void ZaZamplerProcessor::loadBankPatch(const juce::File& root,const juce::String
         std::lock_guard<std::mutex> lock(stateMutex);
         const auto serial=request.serial+1;request={};request.serial=serial;
         request.root=root.getFullPathName();request.bookmark=bookmark;request.patch=std::move(patch);
-        request.bankFile=juce::File(path);request.bankSlot=slot;request.approximate=approximate;
+        request.bankFile=static_cast<size_t>(slot)<patchOrigins.size()?patchOrigins[static_cast<size_t>(slot)]:juce::File(path);request.bankSlot=slot;request.approximate=approximate;
         request.relative=juce::String::fromUTF8(request.patch->sampleFile.c_str());
         bankNotes=approximate?translation.warnings.joinIntoString("\n"):
             "SFZ only: Zampler filter, FX, envelopes, modulation and sequencer settings are not applied. Manual FX remain available.";
-        pending=true;loading.store(true);ready.store(false);status="Loading bank preset: "+juce::String::fromUTF8(request.patch->name.c_str());
+        pending=true;loading.store(true);status="Loading bank preset: "+juce::String::fromUTF8(request.patch->name.c_str());
     }
     cv.notify_one();
 }
@@ -101,22 +102,30 @@ void ZaZamplerProcessor::loadLoop() {
         Request r;
         { std::unique_lock<std::mutex> l(stateMutex); cv.wait(l,[this]{return stop || pending;});
           if (stop) return;
-          r = request; pending = false; }
+          r = request; pending = false; loadStarted=juce::Time::getMillisecondCounterHiRes(); }
+        auto cancelled=[this,&r]{std::lock_guard<std::mutex> lock(stateMutex);return stop || r.serial!=request.serial;};
+        setLoadStage(r.serial,"Opening folder access");
         std::unique_ptr<Instrument> candidate;
         juce::String result;
         try {
             candidate = std::make_unique<Instrument>();
             candidate->access = std::make_unique<FolderAccess>(r.root.toStdString(),r.bookmark.toStdString());
-            double sr; int bs;
-            { std::lock_guard<std::mutex> l(engineMutex); sr = rate; bs = maxBlock; }
-            candidate->engine = std::make_unique<Engine>(sr,bs);
+
             juce::File root(juce::String::fromUTF8(candidate->access->path.c_str()));
             auto file = root.getChildFile(r.relative);
             if(r.patch) {
-                auto resolved=resolveBankSample(*r.patch,r.bankFile,root);
+                setLoadStage(r.serial,"Resolving sample reference: "+r.relative);
+                const auto catalog=libraries.snapshot();
+                const auto* index=catalog->root==root.getFullPathName() && !catalog->scanning?&catalog->instruments:nullptr;
+                auto resolved=resolveBankSample(*r.patch,r.bankFile,root,index,cancelled);
                 if(resolved.error.isNotEmpty())throw std::runtime_error(resolved.error.toStdString());
                 file=resolved.file;r.relative=file.getRelativePathFrom(root);
             }
+            if(cancelled())continue;
+            setLoadStage(r.serial,"Creating sampler engine");
+            double sr;int bs;{std::lock_guard<std::mutex> lock(engineMutex);sr=rate;bs=maxBlock;}
+            candidate->engine=std::make_unique<Engine>(sr,bs);
+            setLoadStage(r.serial,"Loading sample data: "+file.getFileName());
             if(file.hasFileExtension("rex;rx2;rcy")){candidate->rex=std::make_unique<RexImport>(file);file=candidate->rex->sfz;}
             if (!file.hasFileExtension("sfz") || !file.existsAsFile() || !candidate->engine->load(file.getFullPathName().toStdString())) {
                 result = "Load failed. Re-select the library folder and check SFZ/sample paths."; candidate.reset();
@@ -130,6 +139,7 @@ void ZaZamplerProcessor::loadLoop() {
                 if (candidate->engine->samples() == 0) result += " | Check samples (or oscillator-only SFZ).";
             }
         } catch (const std::exception& e) { result = "Load failed: " + juce::String(e.what()); candidate.reset(); }
+        setLoadStage(r.serial,"Installing instrument");
         {
             std::lock_guard<std::mutex> e(engineMutex);
             std::lock_guard<std::mutex> s(stateMutex);
@@ -141,12 +151,14 @@ void ZaZamplerProcessor::loadLoop() {
                 request.root = juce::String::fromUTF8(candidate->access->path.c_str());
                 request.bookmark = juce::String::fromUTF8(candidate->access->bookmark.c_str());
             }
-            instrument.swap(candidate); // old engine is destroyed on this loader thread
-            ready.store(instrument != nullptr); loading.store(false); status = result;
-            panicRequested.store(true);
+            lastLoadSucceeded=candidate!=nullptr;
+            if(candidate){activeRequest=request;instrument.swap(candidate);panicRequested.store(true);}
+            else if(instrument)result+=" | Previous instrument retained.";
+            ready.store(instrument != nullptr); loading.store(false); status = result;loadStage="Idle";
         }
-        log.add(result);
+        log.add("Load #"+juce::String(r.serial)+": "+result);
         loadDone.notify_all();
+        if(candidate){setLoadStage(r.serial,"Releasing previous instrument");candidate.reset();setLoadStage(r.serial,"Idle");}
     }
 }
 juce::String ZaZamplerProcessor::statusText() const { std::lock_guard<std::mutex> l(stateMutex); return status; }
@@ -163,7 +175,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     }
     std::unique_lock<std::mutex> l(engineMutex,std::defer_lock);
     if(isNonRealtime())l.lock();else l.try_lock();
-    if (!l.owns_lock() || !instrument || loading.load()) {
+    if (!l.owns_lock() || !instrument) {
         if(!loggedUnavailable){log.audio(DiagnosticLog::unavailable);loggedUnavailable=true;}
         panicRequested.store(true); midi.clear(); peak.store(0);
         waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);return;
@@ -249,10 +261,13 @@ void ZaZamplerProcessor::getStateInformation(juce::MemoryBlock& dest) {
     const auto catalog=libraries.snapshot();
     tree.setProperty("libraryRoot",catalog->root,nullptr);tree.setProperty("libraryBookmark",catalog->bookmark,nullptr);
     { std::lock_guard<std::mutex> l(stateMutex);
-      tree.setProperty("root",request.root,nullptr); tree.setProperty("bookmark",request.bookmark,nullptr);
-      tree.setProperty("sfz",request.relative,nullptr); tree.setProperty("schema",9,nullptr);
+      const bool fallback=!lastLoadSucceeded && ready.load();
+      const auto& saved=fallback?activeRequest:request;
+      tree.setProperty("root",saved.root,nullptr); tree.setProperty("bookmark",saved.bookmark,nullptr);
+      tree.setProperty("sfz",saved.relative,nullptr); tree.setProperty("schema",10,nullptr);
       tree.setProperty("bankData",bankBase64,nullptr);tree.setProperty("bankPath",bankPath,nullptr);
-      tree.setProperty("bankSlot",request.bankSlot,nullptr);tree.setProperty("bankApproximate",request.approximate,nullptr); }
+      tree.removeChild(tree.getChildWithName("BankArchive"),nullptr);tree.addChild(bankArchive.createCopy(),-1,nullptr);
+      tree.setProperty("bankSlot",fallback?-1:request.bankSlot,nullptr);tree.setProperty("bankApproximate",request.approximate,nullptr); }
     if (auto xml = tree.createXml()) copyXmlToBinary(*xml,dest);
 }
 void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
@@ -271,7 +286,7 @@ void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
             tree.addChild(child,-1,nullptr);
         }
     }
-    libraries.scan(tree["libraryRoot"].toString(),tree["libraryBookmark"].toString());
+    libraries.restore(tree["libraryRoot"].toString(),tree["libraryBookmark"].toString());
     parameters.replaceState(tree);
     clearBank();
     const auto encoded=tree["bankData"].toString();
@@ -285,6 +300,9 @@ void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
             std::lock_guard<std::mutex> lock(stateMutex);bankData=std::move(parsed);bankBase64=encoded;bankPath=path;
         } catch(const std::exception&) { /* Keep saved SFZ/FX state usable even if bank browser data is damaged. */ }
     }
+    if(auto archive=tree.getChildWithName("BankArchive");archive.isValid() && archive.getNumChildren()>0) {
+        try{restoreBankArchive(archive,tree["bankPath"].toString());}catch(const std::exception& e){log.add("Bank archive restore failed: "+juce::String(e.what()));}
+    }
     auto root=tree["root"].toString(), relative=tree["sfz"].toString();
     const int bankSlot=static_cast<int>(tree.getProperty("bankSlot",-1));
     if(root.isNotEmpty() && getBank() && bankSlot>=0 && static_cast<size_t>(bankSlot)<getBank()->patches.size()) {
@@ -297,7 +315,7 @@ void ZaZamplerProcessor::setStateInformation(const void* data, int size) {
         std::lock_guard<std::mutex> e(engineMutex);
         std::lock_guard<std::mutex> s(stateMutex);
         const auto serial=request.serial+1;request={};request.serial=serial;
-        pending=false; ready.store(false); loading.store(false); instrument.reset(); effects.reset();resetPerformance();loadDone.notify_all();
+        pending=false; activeRequest={};lastLoadSucceeded=false;ready.store(false); loading.store(false); instrument.reset(); effects.reset();resetPerformance();loadDone.notify_all();
         status="Choose a library folder, then select an SFZ instrument.";
     }
 }
@@ -309,7 +327,54 @@ void ZaZamplerProcessor::resetPerformance() {
 }
 
 juce::String ZaZamplerProcessor::debugReport() {
-    juce::String result=zazamplerBuildInfo()+"\nStatus: "+statusText()+"\n\n"+log.snapshot()+"\nCurrent parameters:\n";
+    juce::String stage;{std::lock_guard<std::mutex> lock(stateMutex);stage=loadStage+"; elapsed="+juce::String((juce::Time::getMillisecondCounterHiRes()-loadStarted)/1000.,2)+" s; request="+juce::String(request.serial)+"; pending="+juce::String(pending?1:0);}
+    const auto catalog=libraries.snapshot();
+    juce::String result=zazamplerBuildInfo()+"\nStatus: "+statusText()+"\nLoader: "+stage+"\nLibrary: "+catalog->root+"; cached="+juce::String(catalog->cached?1:0)+"; scanning="+juce::String(catalog->scanning?1:0)+"; instruments="+juce::String(catalog->instruments.size())+"\n\n"+log.snapshot()+"\nCurrent parameters:\n";
     for(const auto& spec:parameterSpecs())result+=juce::String(spec.id)+"="+juce::String(parameters.getRawParameterValue(spec.id)->load())+"\n";
     result+="\nImport details:\n"+importNotes();return result;
+}
+
+void ZaZamplerProcessor::setLoadStage(uint64_t serial,const juce::String& stage) {
+    {std::lock_guard<std::mutex> lock(stateMutex);loadStage=stage;}
+    log.add("Loader #"+juce::String(serial)+": "+stage);
+}
+void ZaZamplerProcessor::restoreBankArchive(const juce::ValueTree& archive,const juce::String& path) {
+    auto merged=std::make_shared<ZamplerBank>();std::vector<juce::File> origins;
+    merged->name=juce::File(path).getFileNameWithoutExtension().toStdString();
+    size_t total=0;if(archive.getNumChildren()>4096)throw std::runtime_error("Too many bank archive files");
+    for(const auto& child:archive) {
+        juce::MemoryBlock bytes;const auto data=child["data"].toString();
+        if(data.length()>6*1024*1024 || !bytes.fromBase64Encoding(data))throw std::runtime_error("Invalid bank archive");
+        total+=bytes.getSize();if(total>32*1024*1024)throw std::runtime_error("Bank archive exceeds 32 MiB");
+        const auto parsed=ZamplerBank::parse(bytes.getData(),bytes.getSize());
+        const juce::File source(child["path"].toString());
+        for(auto patch:parsed.patches) {
+            if(!patch.hasSample())continue;
+            bool duplicate=false;
+            for(const auto& previous:merged->patches)
+                if(previous.name==patch.name && previous.sampleFile==patch.sampleFile && previous.parameters==patch.parameters){duplicate=true;break;}
+            if(duplicate)continue;
+            if(merged->patches.size()>=4096)throw std::runtime_error("Library exceeds 4096 presets");
+            patch.slot=static_cast<int>(merged->patches.size());merged->patches.push_back(std::move(patch));origins.push_back(source);
+        }
+    }
+    std::lock_guard<std::mutex> lock(stateMutex);
+    bankData=merged;bankPath=path;bankBase64.clear();bankArchive=archive.createCopy();patchOrigins=std::move(origins);request.bankSlot=-1;
+}
+juce::Result ZaZamplerProcessor::openLibrary(const LibraryCatalog::Entry& entry) {
+    if(entry.patches.isEmpty())return openBank(entry.file);
+    try {
+        juce::ValueTree archive("BankArchive");juce::Array<juce::File> sources;
+        if(entry.file.hasFileExtension("fxb"))sources.add(entry.file);
+        sources.addArray(entry.patches);size_t total=0;
+        for(const auto& f:sources) {
+            if(f.getSize()>4*1024*1024)throw std::runtime_error("Bank exceeds 4 MiB");
+            juce::MemoryBlock bytes;if(!f.loadFileAsData(bytes))throw std::runtime_error("Cannot read "+f.getFileName().toStdString()+". RESCAN the library.");
+            total+=bytes.getSize();if(total>32*1024*1024)throw std::runtime_error("Library metadata exceeds 32 MiB");
+            juce::ValueTree item("File");item.setProperty("path",f.getFullPathName(),nullptr);item.setProperty("data",bytes.toBase64Encoding(),nullptr);archive.addChild(item,-1,nullptr);
+        }
+        restoreBankArchive(archive,entry.file.getFullPathName());
+        log.add("Opened library: "+entry.name+"; presets="+juce::String(static_cast<int>(getBank()->patches.size())));
+        return juce::Result::ok();
+    }catch(const std::exception& e){log.add("Library open failed: "+juce::String(e.what()));return juce::Result::fail(e.what());}
 }
