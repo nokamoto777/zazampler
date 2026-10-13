@@ -19,6 +19,8 @@ bool ZaZamplerProcessor::isBusesLayoutSupported(const BusesLayout& b) const {
 void ZaZamplerProcessor::prepareToPlay(double r, int b) {
     std::lock_guard<std::mutex> l(engineMutex);
     log.add("Prepare: sample rate="+juce::String(r)+", max block="+juce::String(b)+", wrapper="+juce::AudioProcessor::getWrapperTypeDescription(wrapperType));
+    diagnosticPeakMs.store(0);diagnosticOverruns.store(0);diagnosticOffset.store(-1);diagnosticOnset.store(-1);
+    setLatencySamples(0);diagnosticRate.store(r>0?r:44100.);
     rate = r > 0 ? r : 44100.; maxBlock = juce::jmax(1,b);
     if (instrument) instrument->engine->prepare(rate,maxBlock);
     effects.prepare(rate);sequence.prepare(rate);monoGlide.prepare(rate);performance={};
@@ -163,6 +165,13 @@ void ZaZamplerProcessor::loadLoop() {
 }
 juce::String ZaZamplerProcessor::statusText() const { std::lock_guard<std::mutex> l(stateMutex); return status; }
 void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiBuffer& midi) {
+    const double callbackStarted=juce::Time::getMillisecondCounterHiRes();
+    struct Measure {
+        ZaZamplerProcessor& p;double start;int frames;
+        ~Measure(){const double ms=juce::Time::getMillisecondCounterHiRes()-start;
+            p.diagnosticBlock.store(frames);if(!p.isNonRealtime() && ms>p.diagnosticPeakMs.load())p.diagnosticPeakMs.store(ms);
+            if(!p.isNonRealtime() && frames>0 && ms>1000.*frames/p.diagnosticRate.load())++p.diagnosticOverruns;}
+    } measure{*this,callbackStarted,out.getNumSamples()};
     juce::ScopedNoDenormals noDenormals;
     out.clear(); const int frames = out.getNumSamples();
     if (frames == 0 || out.getNumChannels() < 2) { midi.clear(); return; }
@@ -214,6 +223,10 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     else sequence.freeClock();
     int noteOns=0,noteOffs=0;
     auto event = midi.cbegin();
+    const int uiPitch=pendingPitch.exchange(-1),uiMod=pendingMod.exchange(-1);
+    int onsetOffset=-1;
+    // Audio-thread delivery; the GUI never touches sfizz or the host MIDI buffer.
+    const bool replay=replayControllers;replayControllers=false;
     // Hosts may submit larger-than-advertised buffers; split without allocation.
     for (int start=0; start<frames; start+=maxBlock) {
         const int n = juce::jmin(maxBlock,frames-start);
@@ -228,9 +241,22 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
                 if(size>=3 && (data[0]&0xf0)==0x90 && data[2])triggered=true;
             };
             auto generated=[&](const unsigned char* data,int size){monoGlide.midi(data,size,voiceMode!=0,glide,emit);};
+            if(start==0 && i==0) {
+                if(uiPitch>=0 || replay){const int v=uiPitch>=0?uiPitch:wheelPitch.load();const unsigned char d[]={0xe0,static_cast<unsigned char>(v&127),static_cast<unsigned char>(v>>7)};sequence.midi(d,3,seq,generated);}
+                if(uiMod>=0 || replay){const unsigned char d[]={0xb0,1,static_cast<unsigned char>(uiMod>=0?uiMod:wheelMod.load())};sequence.midi(d,3,seq,generated);}
+            }
             while(event!=midi.cend() && (*event).samplePosition<=start+i) {
                 const auto m=*event;
-                if(m.numBytes>0 && (channel==0 || ((m.data[0]&15)+1)==channel))sequence.midi(m.data,m.numBytes,seq,generated);
+                if(m.numBytes>0 && (channel==0 || ((m.data[0]&15)+1)==channel)) {
+                    if(m.numBytes>=3) {
+                        const int type=m.data[0]&0xf0;
+                        if(type==0xe0)wheelPitch.store((m.data[1]&127)|((m.data[2]&127)<<7));
+                        if(type==0xb0 && m.data[1]==1)wheelMod.store(m.data[2]&127);
+                        if(type==0xb0 && m.data[1]==121){wheelPitch.store(8192);wheelMod.store(0);}
+                        if(type==0x90 && m.data[2]){diagnosticOffset.store(m.samplePosition);if(!measuringOnset && onsetOffset<0 && peak.load()<1e-5f){onsetOffset=start+i;diagnosticOnset.store(-1);}}
+                    }
+                    sequence.midi(m.data,m.numBytes,seq,generated);
+                }
                 ++event;
             }
             if(seq.hostSync && playing && hasPosition) {
@@ -247,6 +273,12 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
         voiceSettings.expression=expressionFrames.data();voiceSettings.frames=n;
         engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0,scope?&voiceSettings:nullptr);
         effects.process(out.getWritePointer(0,start),out.getWritePointer(1,start),n,fx,bpm,{},nullptr,{},nullptr,modulationFrames.data());
+    }
+    if(onsetOffset>=0){measuringOnset=true;onsetSamples=-onsetOffset;}
+    if(measuringOnset) {
+        for(int i=juce::jmax(0,onsetOffset);i<frames;++i)
+            if(std::max(std::abs(out.getSample(0,i)),std::abs(out.getSample(1,i)))>1e-5f){diagnosticOnset.store(onsetSamples+i);measuringOnset=false;break;}
+        if(measuringOnset){onsetSamples+=frames;if(onsetSamples>rate*5)measuringOnset=false;}
     }
     if(noteOns || noteOffs)log.audio(DiagnosticLog::midi,noteOns,noteOffs);
     waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);
@@ -323,7 +355,7 @@ juce::AudioProcessorEditor* ZaZamplerProcessor::createEditor() { return new ZaZa
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new ZaZamplerProcessor(); }
 
 void ZaZamplerProcessor::resetPerformance() {
-    envelopeGate.reset();sequence.reset();monoGlide.reset();performance={};
+    envelopeGate.reset();sequence.reset();monoGlide.reset();performance={};replayControllers=true;measuringOnset=false;
 }
 
 juce::String ZaZamplerProcessor::debugReport() {
@@ -331,6 +363,7 @@ juce::String ZaZamplerProcessor::debugReport() {
     const auto catalog=libraries.snapshot();
     juce::String result=zazamplerBuildInfo()+"\nStatus: "+statusText()+"\nLoader: "+stage+"\nLibrary: "+catalog->root+"; cached="+juce::String(catalog->cached?1:0)+"; scanning="+juce::String(catalog->scanning?1:0)+"; instruments="+juce::String(catalog->instruments.size())+"\n\n"+log.snapshot()+"\nCurrent parameters:\n";
     for(const auto& spec:parameterSpecs())result+=juce::String(spec.id)+"="+juce::String(parameters.getRawParameterValue(spec.id)->load())+"\n";
+    result+="\nTiming diagnostics (inside plugin only):\nReported latency="+juce::String(getLatencySamples())+" samples; actual block="+juce::String(diagnosticBlock.load())+" samples; sample rate="+juce::String(diagnosticRate.load())+" Hz\nLast note offset="+juce::String(diagnosticOffset.load())+" samples; quiet-note onset="+juce::String(diagnosticOnset.load())+" samples (-1 = no measurement)\nPeak realtime callback="+juce::String(diagnosticPeakMs.load(),3)+" ms; realtime deadline overruns="+juce::String(diagnosticOverruns.load())+"\nOnset includes patch attack, sample silence, sequencer and effects; excludes host/device latency.\n";
     result+="\nImport details:\n"+importNotes();return result;
 }
 

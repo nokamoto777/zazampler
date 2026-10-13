@@ -2,6 +2,7 @@
 #include "Processor.h"
 #include "InstrumentLook.h"
 #include "WaveformDisplay.h"
+#include "PerformanceWheel.h"
 class PanelControl;
 class InfoWindow;
 class ZaZamplerEditor final : public juce::AudioProcessorEditor, private juce::Timer {
@@ -33,6 +34,7 @@ private:
     void refreshLibraries();
     void selectLibrary();
     juce::Label status,patchInfo;
+    PerformanceWheel pitchWheel{true},modWheel{false};
     WaveformDisplay visualizer;
     juce::MidiKeyboardComponent keyboard;
     std::vector<std::unique_ptr<PanelControl>> controls;

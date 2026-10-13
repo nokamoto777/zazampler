@@ -29,6 +29,7 @@ public:
     LfoModulation modulationTick(const FxSettings&,float bpm,const LfoSettingsBank&,bool noteOn,const EnvelopeSettings&,EnvelopeEvent,const MatrixSettings& = {},const PerformanceFrame& = {});
     static float delayMilliseconds(const FxSettings&,float bpm);
 private:
+    std::array<bool,32> matrixActive {};
     static constexpr float pi=3.14159265358979323846f;
     struct Svf {
         float s1=0,s2=0;

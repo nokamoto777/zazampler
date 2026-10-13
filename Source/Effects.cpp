@@ -41,7 +41,7 @@ void Effects::reset() {
     for(auto& b:chorusBuffer)std::fill(b.begin(),b.end(),0.f);
     for(auto& b:delayBuffer)std::fill(b.begin(),b.end(),0.f);
     chorusWrite=delayWrite=0;chorusPhase=phaserPhase=0;eqCounter=0;
-    initial=true;filterWeights={};reverb.reset();lfos.reset();envelopes.reset();ampEnvelopeBlend={};filterEnvelopeDepth={};modEnvelopeRoutes={};matrixRoutes={};keytrackAmount={};modulationInitial=true;
+    initial=true;filterWeights={};reverb.reset();lfos.reset();envelopes.reset();ampEnvelopeBlend={};filterEnvelopeDepth={};modEnvelopeRoutes={};matrixRoutes={};matrixActive={};keytrackAmount={};modulationInitial=true;
 }
 float Effects::delayMilliseconds(const FxSettings& p,float bpm) {
     static constexpr float beats[]={0.125f,0.25f,0.5f,0.75f,1.f,1.5f,2.f,3.f,4.f};
@@ -131,8 +131,13 @@ LfoModulation Effects::modulationTick(const FxSettings& p,float bpm,const LfoSet
 
         for(size_t row=0;row<matrix.size();++row) {
             const auto& route=matrix[row];
+            if((route.source==0 || route.target==0 || route.depth==0) && !matrixActive[row])continue;
             const float value=matrixSource(route.source,mod,eg,performance)*route.depth;
-            for(size_t t=0;t<6;++t)matrixRoutes[row][t].tick(route.target==static_cast<int>(t)+1?value:0.f,smoothing);
+            matrixActive[row]=false;
+            for(size_t t=0;t<6;++t) {
+                auto& v=matrixRoutes[row][t].value;matrixRoutes[row][t].tick(route.target==static_cast<int>(t)+1?value:0.f,smoothing);
+                if(std::abs(v)<1e-8f)v=0;else matrixActive[row]=true;
+            }
             mod.cutoffOctaves+=5.f*matrixRoutes[row][0].value;
             mod.amplitude*=std::pow(10.f,12.f*matrixRoutes[row][1].value/20.f);
             mod.pan+=matrixRoutes[row][2].value;mod.resonance+=4.f*matrixRoutes[row][3].value;

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 # Older pinned dependencies still use pre-3.5 policy versions.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "")
-project(ZaZampler VERSION 0.9.1 LANGUAGES C CXX)
+project(ZaZampler VERSION 0.9.2 LANGUAGES C CXX)
 execute_process(COMMAND git rev-parse --short=12 HEAD WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" OUTPUT_VARIABLE ZAZAMPLER_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
 if(NOT ZAZAMPLER_COMMIT)
   set(ZAZAMPLER_COMMIT "unknown-source-archive")
