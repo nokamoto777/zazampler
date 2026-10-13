@@ -66,7 +66,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     setLookAndFeel(&look);
     addAndMakeVisible(canvas);
     canvas.setComponentID("instrumentCanvas");
-    for(auto* c:std::initializer_list<juce::Component*>{&visualizer,&libraries,&presetSearch,&libraryStatus,&scanButton,&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
+    for(auto* c:std::initializer_list<juce::Component*>{&pitchWheel,&modWheel,&visualizer,&libraries,&presetSearch,&libraryStatus,&scanButton,&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
     // Main-panel locations follow the familiar Zampler arrangement.
     knob("cutoff","Cutoff",800,48,72,78);knob("resonance","Reso",872,48,66,78);
     knob("envFilterAmount","Env / oct",938,48,64,78);knob("keytrack","KTrack",1002,48,64,78);
@@ -159,6 +159,8 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
         b->setColour(juce::TextButton::textColourOffId,juce::Colour(0xffbcbcbc));
         b->setColour(juce::TextButton::textColourOnId,juce::Colour(0xffeee4d0));
     }
+    pitchWheel.onChange=[this](int value){processor.setUiPitch(value);};
+    modWheel.onChange=[this](int value){processor.setUiMod(value);};
     keyboard.setAvailableRange(24,108);keyboard.setLowestVisibleKey(36);keyboard.setKeyWidth(20.f);
     keyboard.setColour(juce::MidiKeyboardComponent::whiteNoteColourId,juce::Colour(0xffe9edf0));
     keyboard.setColour(juce::MidiKeyboardComponent::blackNoteColourId,juce::Colour(0xff181d21));
@@ -170,9 +172,9 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     setResizeLimits(660,456,2200,1520);
     setSize(1100,760);bottomPage(false);centrePage(false);timerCallback();startTimerHz(30);
 }
-ZaZamplerEditor::~ZaZamplerEditor() {stopTimer();setLookAndFeel(nullptr);}
+ZaZamplerEditor::~ZaZamplerEditor() {pitchWheel.release();stopTimer();setLookAndFeel(nullptr);}
 void ZaZamplerEditor::bottomPage(bool effects) {
-    showEffects=effects;fxPanel.setVisible(effects);keyboard.setVisible(!effects);visualizer.setVisible(!effects);
+    showEffects=effects;fxPanel.setVisible(effects);keyboard.setVisible(!effects);pitchWheel.setVisible(!effects);modWheel.setVisible(!effects);visualizer.setVisible(!effects);
     effectsButton.setToggleState(effects,juce::dontSendNotification);keysButton.setToggleState(!effects,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::centrePage(int page) {
@@ -288,7 +290,7 @@ void ZaZamplerEditor::selectPreset() {
     else if(juce::isPositiveAndBelow(slot,files.size()))processor.load(root,bookmark,files[slot].getRelativePathFrom(root));
 }
 void ZaZamplerEditor::timerCallback() {
-    visualizer.update();
+    visualizer.update();pitchWheel.setMidiValue(processor.pitchWheelValue());modWheel.setMidiValue(processor.modWheelValue());
     const auto instrumentPath=processor.currentInstrumentPath();
     const bool rex=instrumentPath.endsWithIgnoreCase(".rx2") || instrumentPath.endsWithIgnoreCase(".rex") || instrumentPath.endsWithIgnoreCase(".rcy");
     if(rex!=showingRex){showingRex=rex;keyboard.setAvailableRange(rex?0:24,rex?127:108);keyboard.setLowestVisibleKey(rex?0:36);}
@@ -407,7 +409,7 @@ void ZaZamplerEditor::resized() {
     previous.setBounds(288,314,28,30);patches.setBounds(321,314,395,30);next.setBounds(721,314,28,30);
     patchInfo.setBounds(288,350,460,68);approximateFx.setBounds(286,454,305,29);detailsButton.setBounds(603,455,145,25);
     keysButton.setBounds(24,505,115,23);effectsButton.setBounds(144,505,115,23);panicButton.setBounds(679,505,94,23);
-    fxPanel.setBounds(32,532,1040,183);visualizer.setBounds(40,537,1020,52);keyboard.setBounds(40,598,1020,104);status.setBounds(24,721,950,28);
+    fxPanel.setBounds(32,532,1040,183);visualizer.setBounds(40,537,1020,52);pitchWheel.setBounds(40,598,38,104);modWheel.setBounds(80,598,38,104);keyboard.setBounds(126,598,934,104);status.setBounds(24,721,950,28);
 }
 
 void ZaZamplerEditor::showAbout() {

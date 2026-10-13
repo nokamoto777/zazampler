@@ -49,6 +49,10 @@ public:
     bool isLoading() const { return loading.load(); }
     bool isReady() const { return ready.load(); }
     void panic() { panicRequested.store(true); }
+    void setUiPitch(int value){value=juce::jlimit(0,16383,value);wheelPitch.store(value);pendingPitch.store(value);}
+    void setUiMod(int value){value=juce::jlimit(0,127,value);wheelMod.store(value);pendingMod.store(value);}
+    int pitchWheelValue() const{return wheelPitch.load();}
+    int modWheelValue() const{return wheelMod.load();}
     DiagnosticLog log;
     juce::String debugReport();
     LibraryCatalog libraries;
@@ -85,6 +89,11 @@ private:
     juce::String status = "Choose a library folder, then select an SFZ instrument.";
     std::atomic<bool> loading {false}, ready {false}, panicRequested {false};
     std::thread loader;
+    std::atomic<int> wheelPitch{8192},wheelMod{0},pendingPitch{-1},pendingMod{-1};
+    bool replayControllers=true;
+    std::atomic<int> diagnosticBlock{0},diagnosticOffset{-1},diagnosticOnset{-1},diagnosticOverruns{0};
+    std::atomic<double> diagnosticRate{44100},diagnosticPeakMs{0};
+    bool measuringOnset=false;int onsetSamples=0;
     double rate = 44100.;
     int maxBlock = 512;
     int lastChannel = 1;
