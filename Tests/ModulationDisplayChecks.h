@@ -14,7 +14,7 @@ inline void run(const juce::File& root) {
     a.tick(settings,120,false,true,5.25);
     check(random==a.tick(settings,120,false,true,1.25).waves[0],"PPQ S&H repeats on loop");
     ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
-    p.load(root,{},"Sine.sfz");waitLoaded(p);
+    p.load(root,{},"Sine.sfz");wait(p);
     auto set=[&](const char* id,float value){auto* x=p.parameters.getParameter(id);x->setValueNotifyingHost(x->convertTo0to1(value));};
     struct Listener:juce::AudioProcessorParameter::Listener {
         int begins=0,ends=0,changes=0;
