@@ -38,7 +38,7 @@ inline void run(const juce::File& root) {
         check(maximum-minimum>3,"display follows real LFO destination");
         check(p.parameters.getParameter("cutoff")->getValue()==base,"telemetry preserves host base value");
     }
-    check(p.getTailLengthSeconds()>=2*std::log(1.e9),"exponential release tail reported to host");
+    check(p.getTailLengthSeconds()+1.e-6>=static_cast<double>(p.parameters.getRawParameterValue("envAmpRelease")->load())*std::log(1.e9),"exponential release tail reported to host");
     p.panic();for(int i=0;i<20;++i){juce::AudioBuffer<float> audio(2,128);juce::MidiBuffer midi;p.processBlock(audio,midi);}
     check(!p.modulationMeter.active.load(),"voice meter clears after panic");
 }

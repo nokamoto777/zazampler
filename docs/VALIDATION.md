@@ -222,3 +222,16 @@ Mac上の実行手順は `MAC_ACCEPTANCE.md` に記載。
 ## 2026-10-20 / 0.9.3
 
 ユーザー提供RX音声4本との比較をdocs/REFERENCE_AUDIO.mdに記録。音声はリポジトリに含めず、比較CLIと合成回帰テストを追加。Linuxの3テスト成功。最終バージョン番号更新後の再ビルドとmacOS CIを別途確認。
+
+## 0.9.4 — 2026-10-20
+
+Linux Releaseでengine_audio / bank_format / processor_stateの3件が成功。追加チェックは以下。
+
+- Pushの8項目でbegin/endと値通知を確認。実値を再設定せず、正規化の往復丸めを回避。
+- Global / Per voiceの実処理テレメトリーがLFOに追従し、基準パラメーターを変更しない。Panic後のボイス表示解除。
+- PPQ位置に対するLFO位相、負のPPQ、ノート再トリガー・シーク、S&Hのループ再現。
+- 指数Releaseの時定数から求めた残響時間のホスト通知。
+- 既存212パラメーターのID・順序を維持し、位相設定3個だけ末尾追加。
+- 固定テレメトリーによる水色指標とLFO ROUTING画面をPNGで確認。
+
+Live/Push実機でConfigure登録とデフォルト再読込は未検証。macOS arm64はPRのActionsで別途確認。UIの同値通知をLiveが無視する場合はREADMEの手動Configure手順を使用する。
