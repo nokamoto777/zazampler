@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-struct AdsrSettings {float attack=0.01f,decay=0.2f,sustain=1.f,release=0.3f;};
+struct AdsrSettings {float attack=0.01f,decay=0.2f,sustain=1.f,release=0.3f;bool exponential=false;};
 struct EnvelopeSettings {
     AdsrSettings amp,filter,mod;
-    bool ampEnabled=false;
+    bool ampEnabled=false,ownRelease=false;
     float filterOctaves=0,modDepth=0;
     int modTarget=0;
 };
@@ -42,7 +42,7 @@ private:
 };
 class Adsr {
 public:
-    void prepare(double sr){rate=sr>0?sr:44100.;reset();}
+    void prepare(double sr){rate=sr>0?sr:44100.;cachedTimes={-1,-1,-1};reset();}
     void reset(){level=releaseStart=0;stage=Idle;}
     void noteOn(){stage=Attack;}
     void noteOff(){if(stage!=Idle && stage!=Release){releaseStart=level;stage=Release;}}
@@ -53,11 +53,14 @@ public:
                 case Idle:return 0;
                 case Attack:
                     if(p.attack<=0){level=1;stage=Decay;continue;}
-                    level=std::min(1.,level+1./(rate*p.attack));if(level>=1.-1e-9){level=1;stage=Decay;}
+                    if(p.exponential)level+=(1.-level)*coefficient(p.attack,0);
+                    else level=std::min(1.,level+1./(rate*p.attack));
+                    if(level>=1.-(p.exponential?1e-5:1e-9)){level=1;stage=Decay;}
                     break;
                 case Decay:
                     if(p.decay<=0){level=sustain;stage=Sustain;continue;}
-                    level=std::max(sustain,level-(1.-sustain)/(rate*p.decay));
+                    if(p.exponential)level+=(sustain-level)*coefficient(p.decay,1);
+                    else level=std::max(sustain,level-(1.-sustain)/(rate*p.decay));
                     if(level<=sustain+1e-9){level=sustain;stage=Sustain;}
                     break;
                 case Sustain:
@@ -65,13 +68,21 @@ public:
                     level+=std::clamp(sustain-level,-1./(rate*0.005),1./(rate*0.005));break;
                 case Release:
                     if(p.release<=0){reset();return 0;}
-                    level=std::max(0.,level-releaseStart/(rate*p.release));if(level<=1e-9){reset();return 0;}break;
+                    if(p.exponential)level*=(1-coefficient(p.release,2));
+                    else level=std::max(0.,level-releaseStart/(rate*p.release));
+                    if(level<=1e-9){reset();return 0;}break;
             }
             break;
         }
         return static_cast<float>(std::clamp(level,0.,1.));
     }
 private:
+    double coefficient(float seconds,size_t index) {
+        if(cachedTimes[index]!=seconds){cachedTimes[index]=seconds;coefficients[index]=-std::expm1(-1./(rate*seconds));}
+        return coefficients[index];
+    }
+    std::array<float,3> cachedTimes{-1,-1,-1};
+    std::array<double,3> coefficients{};
     enum Stage {Idle,Attack,Decay,Sustain,Release};Stage stage=Idle;
     double rate=44100,level=0,releaseStart=0;
 };

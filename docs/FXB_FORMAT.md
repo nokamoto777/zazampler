@@ -49,3 +49,8 @@ slot 125 (ArpMode)には5/6の非正規化enum値がある。128–159の変調�
 最後の非空音色: SY Piano Pinta / SY Piano Pinta.sfz。
 バンクの読み取りを検証したが、対応SFZ/WAVは未提供のためこのバンクの発音・本家との聴感比較は未検証。
 提供ファイル、メーカーの実行ファイル、音源素材はソース配布に含めない。
+
+
+### 0.9.3 reference calibration
+
+Filter ENV raw 0 now maps to 0 (positive 0–5 octaves), not −5. PitchSemi is quantized to integer semitones within the existing approximate ±12-semitone mapping; the full original modulation range is still not recovered. ADSR uses an empirical `0.001 * 10000^v` time constant (exact zero stays zero) and exponential response, based on supplied RX audio. LFO fade retains its previous approximation. Imported Mono holds the first region selection through contiguous notes, resetting at a sample with no held keys. This is selectable with `monoSampleHold`; pre-0.9.3 states default to the old behavior.

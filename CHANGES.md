@@ -1,5 +1,14 @@
 # 変更履歴
 
+## 0.9.3 — RX reference-audio calibration
+
+- 同じバンク・MIDIでオリジナルRXと実出力を比較。比較用レンダーCLIと数値比較スクリプトを追加。
+- FXB Filter ENVのゼロを負の変調へ変換していた問題、Pitch Semiの小数半音ずれを修正。
+- FXBに指数ENV・経験的な時間変換を適用。旧状態はLinearを維持。
+- FXB Monoのフレーズ内サンプル保持を追加。鍵盤が空のサンプル時点で保持を解除。
+- Per voiceの既定SFZ releaseによる途中切れを防ぎ、外部ENV終了でvoiceを回収。明示的な長いrelease、steal/off-groupは保持。
+- 比較値・制限はdocs/REFERENCE_AUDIO.md。フィルター／FX／音量は完全互換ではない。
+
 ## 0.9.2 — 演奏ホイール・発音タイミング診断
 
 - 鍵盤左にBEND／MODホイール。ベンドは離すと中央復帰、CC1は位置保持。外部MIDI操作も表示。

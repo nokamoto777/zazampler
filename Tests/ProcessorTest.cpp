@@ -26,12 +26,15 @@ static void wait(ZaZamplerProcessor& p){
 #include "WaveformChecks.h"
 #include "AdvancedChecks.h"
 #include "WheelLatencyChecks.h"
+#include "ReferenceRender.h"
+#include "ReferenceChecks.h"
 int main(int argc,char** argv){
     const auto testCache=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("zazampler-test-cache",{},false);
     setenv("ZAZAMPLER_CACHE_DIR",testCache.getFullPathName().toRawUTF8(),1);
     struct CacheCleanup {juce::File file;~CacheCleanup(){file.deleteRecursively();}} cacheCleanup{testCache};
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
+        if(argc>=8 && juce::String(argv[1])=="--render-bank")return renderReference(argc,argv);
         if(argc==3 && (juce::String(argv[1])=="--snapshot-about" || juce::String(argv[1])=="--snapshot-debug")) {
             ZaZamplerProcessor processor;processor.prepareToPlay(48000,128);
             std::unique_ptr<juce::Component> panel;
@@ -85,7 +88,7 @@ int main(int argc,char** argv){
         waveformchecks::run();rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
-        wheelchecks::run(root);advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
+        wheelchecks::run(root);referencechecks::run(root);advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
         librarychecks::run(root);librarychecks::cachingAndReload(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
         ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
         juce::MemoryBlock empty;p.getStateInformation(empty);

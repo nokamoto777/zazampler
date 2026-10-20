@@ -4,7 +4,7 @@ function(zazampler_patch file before after)
   file(READ "${file}" text)
   # Earlier extensions may split a previously inserted block; recognize the
   # unique field/handler before applying that older patch again.
-  foreach(marker "const float* zazamplerPitch = nullptr;" "const void* zazamplerVoiceSettings = nullptr;" "MATCH(\"/zazampler/pitch\", \"bi\")" "unsigned zazamplerOffset_ = 0;" "pitchSpan[i] += cfg.zazamplerPitch" "pitchSpan[i] += zazamplerMod_.pitch")
+  foreach(marker "const auto* zazamplerSettings = static_cast<const VoiceModSettings*>" "impl.zazamplerMod_.prepare(impl.sampleRate_);" "impl.zazamplerMod_.process(buffer.getSpan(0).data()" "const float* zazamplerPitch = nullptr;" "const void* zazamplerVoiceSettings = nullptr;" "MATCH(\"/zazampler/pitch\", \"bi\")" "unsigned zazamplerOffset_ = 0;" "pitchSpan[i] += cfg.zazamplerPitch" "pitchSpan[i] += zazamplerMod_.pitch")
     string(FIND "${after}" "${marker}" in_after)
     string(FIND "${text}" "${marker}" in_file)
     if(NOT in_after EQUAL -1 AND NOT in_file EQUAL -1)
@@ -48,3 +48,12 @@ zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.samplesPerBlo
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.initialDelay_ -= static_cast<int>(delay);" "    impl.initialDelay_ -= static_cast<int>(delay);\n    const auto* zazamplerSettings = static_cast<const VoiceModSettings*>(impl.resources_.getSynthConfig().zazamplerVoiceSettings);\n    impl.zazamplerMod_.generate(zazamplerSettings, buffer.getNumFrames(), delay);")
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.powerFollower_.process(buffer);" "    impl.zazamplerMod_.process(buffer.getSpan(0).data(), buffer.getSpan(1).data(), buffer.getNumFrames(), zazamplerSettings);\n    impl.powerFollower_.process(buffer);")
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    bendSmoother_.process(pitchSpan, pitchSpan);" "    bendSmoother_.process(pitchSpan, pitchSpan);\n    for (size_t i = 0; i < numFrames; ++i)\n        pitchSpan[i] += zazamplerMod_.pitch(i + zazamplerOffset_);")
+
+# An imported amplitude envelope owns note-off decay only for SFZ's near-zero
+# default release. Explicit longer SFZ releases and off-group/steal fades survive.
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    bool offed_" "    bool zazamplerOwnRelease_ = false;\n    bool offed_")
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.zazamplerMod_.start(impl.triggerEvent_.number, impl.triggerEvent_.value);" "    impl.zazamplerMod_.start(impl.triggerEvent_.number, impl.triggerEvent_.value);\n    impl.zazamplerOwnRelease_ = false;")
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    zazamplerMod_.release(delay);" "    if (!offed_ && zazamplerOwnRelease_) {\n        egAmplitude_.setReleaseTime(1000.f);\n        egAmplitude_.stopDynamicUpdates();\n        zazamplerOwnRelease_ = true;\n    }\n    zazamplerMod_.release(delay);")
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.powerFollower_.process(buffer);" "    if (impl.zazamplerOwnRelease_ && (!zazamplerSettings || !zazamplerSettings->envelopes.ampEnabled || impl.zazamplerMod_.ampFinished()))\n        impl.switchState(State::cleanMeUp);\n    impl.powerFollower_.process(buffer);")
+
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.zazamplerMod_.generate(zazamplerSettings, buffer.getNumFrames(), delay);" "    if (!impl.zazamplerOwnRelease_ && !impl.offed_ && !region->flexAmpEG && region->amplitudeEG.release <= 0.001f && zazamplerSettings && zazamplerSettings->envelopes.ampEnabled && zazamplerSettings->envelopes.ownRelease) {\n        impl.zazamplerOwnRelease_ = true;\n        if (impl.released()) { impl.egAmplitude_.setReleaseTime(1000.f); impl.egAmplitude_.stopDynamicUpdates(); }\n    }\n    impl.zazamplerMod_.generate(zazamplerSettings, buffer.getNumFrames(), delay);")

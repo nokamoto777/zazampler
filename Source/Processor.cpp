@@ -213,10 +213,12 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     const auto matrixSettings=readMatrixSettings(parameters);const auto seq=readSequenceSettings(parameters);
     const int voiceMode=static_cast<int>(parameters.getRawParameterValue("voiceMode")->load());
     const float glide=parameters.getRawParameterValue("glide")->load();
+    const bool holdSample=parameters.getRawParameterValue("monoSampleHold")->load()>0.5f;
     const int scope=static_cast<int>(parameters.getRawParameterValue("modScope")->load());
     if(seq.mode!=lastSequenceMode || voiceMode!=lastVoiceMode || scope!=lastModScope){log.audio(DiagnosticLog::modes,seq.mode,voiceMode+2*scope);engine.panic();effects.reset();resetPerformance();lastSequenceMode=seq.mode;lastVoiceMode=voiceMode;lastModScope=scope;}
     VoiceModSettings voiceSettings;voiceSettings.lfos=lfoSettings;voiceSettings.envelopes=envelopeSettings;
     voiceSettings.matrix=matrixSettings;voiceSettings.filterMode=fx.filterMode;voiceSettings.cutoff=fx.cutoff;
+    voiceSettings.expressionKey=voiceMode!=0 && holdSample;
     voiceSettings.resonance=fx.resonance;voiceSettings.keytrack=fx.keytrack;voiceSettings.bpm=bpm;
     if(scope)fx.filterMode=0;
     if(seq.hostSync && playing && hasPosition)sequence.synchronize(seq,bpm,ppq,barStart,seek);
@@ -240,7 +242,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
                 gateEvent.merge(envelopeGate.midi(data,size));
                 if(size>=3 && (data[0]&0xf0)==0x90 && data[2])triggered=true;
             };
-            auto generated=[&](const unsigned char* data,int size){monoGlide.midi(data,size,voiceMode!=0,glide,emit);};
+            auto generated=[&](const unsigned char* data,int size){monoGlide.midi(data,size,voiceMode!=0,glide,emit,holdSample);};
             if(start==0 && i==0) {
                 if(uiPitch>=0 || replay){const int v=uiPitch>=0?uiPitch:wheelPitch.load();const unsigned char d[]={0xe0,static_cast<unsigned char>(v&127),static_cast<unsigned char>(v>>7)};sequence.midi(d,3,seq,generated);}
                 if(uiMod>=0 || replay){const unsigned char d[]={0xb0,1,static_cast<unsigned char>(uiMod>=0?uiMod:wheelMod.load())};sequence.midi(d,3,seq,generated);}
@@ -266,6 +268,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
                 }
             }
             sequence.tick(seq,bpm,generated);
+            if(voiceMode!=0 && holdSample)performance.note=monoGlide.note();
             modulationFrames[static_cast<size_t>(i)]=scope?LfoModulation{}:effects.modulationTick(fx,bpm,lfoSettings,triggered,envelopeSettings,gateEvent,matrixSettings,performance);
             expressionFrames[static_cast<size_t>(i)]=performance;
             pitchFrames[static_cast<size_t>(i)]=monoGlide.tick(voiceMode!=0,true)+modulationFrames[static_cast<size_t>(i)].pitchCents;

@@ -1,4 +1,4 @@
-# ZaZampler 0.9.2 — ZamplerのSFZ音色を利用するサンプラープラグイン
+# ZaZampler 0.9.3 — ZamplerのSFZ音色を利用するサンプラープラグイン
 
 M1 MacBook Pro向け **arm64ネイティブ / AUv3・VST3** のソースプロジェクトです。
 互換用にAUv2とStandaloneもビルドします。JUCE 8.0.6 + sfizz 1.2.3 + VelociLoopsを固定コミットで取得します。
@@ -369,3 +369,12 @@ VelociLoopsのデコーダーでバックグラウンド変換し、**スライ�
 REX選択時は画面鍵盤もMIDI 0から表示し、最初のスライスをクリックして確認できます。各スライスをワンショットで演奏します。ループ全体の自動再構成・DAWテンポへの追従は実装していません。通常のアルペジエーターを使う場合も、原ファイルのスライス時刻は自動では適用しません。
 変換キャッシュは一時フォルダーに作り、音源の破棄時に削除します。DAW保存には元ファイルの参照を保持し、復元時に再変換します。元のREXファイルを移動・削除しないでください。
 入力64 MiB、4096スライス、展開音声256 MiBまで。独自デコーダーによる互換実装であり、すべての市販REXの再現は保証しません。
+
+
+## 0.9.3: Zampler RX 実音比較による修正
+
+提供されたAssaultの4音色と同一MIDIで比較し、FXB取り込みのFilter ENVゼロ値、Pitch Semiの小数半音ずれ、ENVカーブ、Monoのサンプル選択、既定SFZリリースによる途中切れを修正しました。[比較記録](docs/REFERENCE_AUDIO.md)を参照してください。原音との完全一致ではなく、特にディレイ／リバーブとゲインの差が残ります。
+
+既存DAWプロジェクトの音を勝手に変換しないため、新しい取り込み設定を適用するにはFXBの音色を選び直してください。手動変更は先に保存してください。新しいパラメーターは末尾へ追加し、古い保存状態では従来のLinear／SFZ release／Each noteを既定値にします。
+
+ENV ROUTINGのEnvelope curveはLinear / Exponential、Amp release sourceはSFZ / Envelopeです。Exponentialの時間値は時定数（Attackは約63%に到達する時間）です。Envelope releaseはPer voiceでSFZの既定に近い0–1msのreleaseのみを補います。明示された長いSFZ releaseは保持します。Mono sample selectionはホストのパラメーターからEach note / Phraseを選べます。Phraseは連続するMono演奏中に最初のサンプルを保持し、無音のMIDI間隔で再選択します。
