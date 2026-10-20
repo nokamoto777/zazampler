@@ -131,15 +131,16 @@ void ZaZamplerProcessor::loadLoop() {
             candidate->engine=std::make_unique<Engine>(sr,bs);
             setLoadStage(r.serial,"Loading sample data: "+file.getFileName());
             if(file.hasFileExtension("rex;rx2;rcy")){candidate->rex=std::make_unique<RexImport>(file);file=candidate->rex->sfz;}
-            if (!file.hasFileExtension("sfz") || !file.existsAsFile() || !candidate->engine->load(file.getFullPathName().toStdString())) {
+            const bool loaded=file.hasFileExtension("sfz") && file.existsAsFile() && candidate->engine->load(file.getFullPathName().toStdString());
+            const auto unavailable=candidate->engine->missingSamples(file.getFullPathName().toStdString());
+            for(const auto& path:unavailable)log.add("Unavailable sample: "+juce::String::fromUTF8(path.c_str()));
+            if (!loaded) {
                 result = "Load failed. Re-select the library folder and check SFZ/sample paths."; candidate.reset();
             } else {
                 result = file.getFileName() + " | " + juce::String(candidate->engine->regions()) + " regions, "
                        + juce::String(candidate->engine->samples()) + " preloaded samples";
                 if(candidate->rex)result=candidate->rex->description;
-                const auto missing=candidate->engine->missingSamples(file.getFullPathName().toStdString());
-                if(!missing.empty()) {result+=" | MISSING SAMPLES: "+juce::String(static_cast<int>(missing.size()));
-                    for(const auto& path:missing)log.add("Missing sample: "+juce::String::fromUTF8(path.c_str()));}
+                if(!unavailable.empty())result+=" | UNAVAILABLE SAMPLES: "+juce::String(static_cast<int>(unavailable.size()));
                 const auto unknown = candidate->engine->unknownOpcodes();
                 if (!unknown.empty()) result += " | Unsupported: " + juce::String::fromUTF8(unknown.c_str());
                 if(r.patch)result=juce::String::fromUTF8(r.patch->name.c_str())+(r.approximate?" [approximate FX] | ":" [SFZ only] | ")+result;

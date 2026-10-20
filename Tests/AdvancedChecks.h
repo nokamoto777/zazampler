@@ -88,6 +88,21 @@ inline void rex(const juce::File& temp) {
     };
     auto* keyboard=findKeyboard(*editor);check(keyboard && keyboard->getRangeStart()==0 && keyboard->getRangeEnd()==127 && keyboard->getLowestVisibleKey()==0,"REX slices reachable from on-screen keyboard");
     juce::AudioBuffer<float> out(2,128);juce::MidiBuffer midi;midi.addEvent(juce::MidiMessage::noteOn(1,0,(juce::uint8)100),0);processor.processBlock(out,midi);check(out.getMagnitude(0,128)>0.001f,"processor REX audio");
+    struct Head final:juce::AudioPlayHead {
+        double beat=0;bool playing=true;
+        juce::Optional<PositionInfo> getPosition() const override {PositionInfo p;p.setPpqPosition(beat);p.setBpm(120);p.setIsPlaying(playing);return p;}
+    } head;
+    processor.setPlayHead(&head);
+    for(const auto* id:{"rexPlayback","midiOutput"})processor.parameters.getParameter(id)->setValueNotifyingHost(1);
+    midi.clear();processor.processBlock(out,midi);bool slice0=false;
+    for(const auto message:midi)if(message.getMessage().isNoteOn() && message.getMessage().getNoteNumber()==0 && message.samplePosition==0)slice0=true;
+    check(slice0 && out.getMagnitude(0,128)>1e-5f,"REX host loop without MIDI input");
+    head.beat=1;midi.clear();processor.processBlock(out,midi);bool slice1=false;
+    for(const auto message:midi)if(message.getMessage().isNoteOn() && message.getMessage().getNoteNumber()==1 && message.samplePosition==0)slice1=true;
+    check(slice1,"REX host seek follows slice PPQ");
+    head.playing=false;midi.clear();processor.processBlock(out,midi);bool stopped=false;
+    for(const auto message:midi)if(message.getMessage().isNoteOff())stopped=true;
+    check(stopped,"REX host stop releases MIDI");processor.setPlayHead(nullptr);
     juce::MemoryBlock state;processor.getStateInformation(state);ZaZamplerProcessor recalled;recalled.prepareToPlay(48000,128);recalled.setStateInformation(state.getData(),static_cast<int>(state.getSize()));wait(recalled);check(recalled.statusText().contains("REX"),"REX source recall rebuilds cache");
 }
 }

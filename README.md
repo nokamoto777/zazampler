@@ -1,4 +1,4 @@
-# ZaZampler 0.9.4 — ZamplerのSFZ音色を利用するサンプラープラグイン
+# ZaZampler 0.9.5 — ZamplerのSFZ音色を利用するサンプラープラグイン
 
 M1 MacBook Pro向け **arm64ネイティブ / AUv3・VST3** のソースプロジェクトです。
 互換用にAUv2とStandaloneもビルドします。JUCE 8.0.6 + sfizz 1.2.3 + VelociLoopsを固定コミットで取得します。
@@ -399,3 +399,16 @@ Liveは64個を超えるパラメーターを持つプラグインの操作項�
 - 指標はノブの表示範囲へ制限。フィルターOffならCutoffが動いても音は変わりません。Volumeは変調倍率のdB換算で、出力音量メーターではありません。
 - LFO ROUTINGで **Host tempo + DAW phase** を選ぶと、再生中にホストが提供するPPQへ位相を固定。ループ・シーク時のS&Hも再現します。DAW位相はNote resetより優先し、Fadeはノートで再開始します。
 - 停止中・PPQ未提供時は従来の周期動作。Free Hzには位相ロックを適用しません。既存状態とFXB取込はFree phaseを維持。
+
+## 演奏機能の追加（0.9.5）
+
+上部中央にLatch / MIDI out / Limiter / Crossfadeを追加。
+
+- **Latch on**: Arp有効時、鍵盤を離してもコードを保持。全鍵を離した後の次のコードで置換。Latch off・PANIC・DAW停止で解除。
+- **MIDI out on**: Arp生成後、Monoの内部サンプル選択前のMIDIをホストへ返す。既定OFF。通常演奏もチャンネルフィルター通過後のイベントを返す。OFF切替・PANIC・シーク・モード変更ではNote Off、サステイン解除、All Notes Offを送る。受信先の設定はDAWで行い、元トラックへ戻してループさせない。ホスト／プラグイン形式のMIDI出力対応が必要。
+- **Limiter on**: ステレオ連動、上限0.98、即時アタック／50 msリリース。既定OFF、先読みなし、追加レイテンシー0。true peakリミッターではない。
+- **20 ms fade**: 発音中の音源切替で旧音源を短く混ぜて段差を抑える。既定ON。無音時は即時切替。共通FXは新設定を使用し、旧FX残響は保持しない。旧エンジンは次回切替またはプラグイン破棄まで保持し、音声スレッド上で破棄しない。
+- MAINの **REX playback → Host loop**: REXを読み込んでDAWを再生すると、格納されたスライスPPQ順に自動ループ。テンポ・シーク・ループ・停止へ追従。既定はSlice keys。PPQ未提供時は自動発音しない。元のループを聴く場合はArpをOffにし、別のMIDIクリップを停止する。スライスのピッチは維持するが、低速時の隙間を埋めるタイムストレッチは含まない。
+- sfizzの解析中に読み込めなかったサンプル参照を収集。件数はステータス、個々のパスはAboutのDEBUGログへ記録（ログ保持上限あり）。macro / default_pathを反映。未対応opcodeや失敗したincludeの完全検証ではない。
+
+MIDI出力ルーティングと市販REX素材は実機未検証。未解明のFXB変調符号・本家固有DSPは引き続き近似または未対応。

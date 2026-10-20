@@ -29,6 +29,7 @@ static void wait(ZaZamplerProcessor& p){
 #include "ReferenceRender.h"
 #include "ReferenceChecks.h"
 #include "ModulationDisplayChecks.h"
+#include "RemainingChecks.h"
 int main(int argc,char** argv){
     const auto testCache=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("zazampler-test-cache",{},false);
     setenv("ZAZAMPLER_CACHE_DIR",testCache.getFullPathName().toRawUTF8(),1);
@@ -93,7 +94,7 @@ int main(int argc,char** argv){
         waveformchecks::run();rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
-        modulationdisplaychecks::run(root);wheelchecks::run(root);referencechecks::run(root);advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
+        remainingchecks::run(root);modulationdisplaychecks::run(root);wheelchecks::run(root);referencechecks::run(root);advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
         librarychecks::run(root);librarychecks::cachingAndReload(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
         ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
         juce::MemoryBlock empty;p.getStateInformation(empty);
