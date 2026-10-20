@@ -365,8 +365,7 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
     } else if(centrePageIndex==2) {
 
 
-        text("Per voice: independent LFOs and ADSR for every note.",300,432,440,22,11.f,ink);
-        text("Global: legacy shared modulation / sustain supported.",300,455,440,22,11.f,ink);
+        text("Per voice: independent LFOs and ADSR for every note.",300,464,440,22,11.f,ink);
     } else if(centrePageIndex==3) {
         text("32 ROUTES (SCROLL) / PITCH DEPTH 1 = 12 SEMITONES",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==5) {
