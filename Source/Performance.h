@@ -59,7 +59,7 @@ struct SequenceSettings {
     int mode=0,division=2,length=8,octaves=1; // Off, Up, Down, Step
     int rhythm=0,hits=5,rotation=0,noteOrder=0;
     float swing=0.f,gate=0.7f;
-    bool hostSync=false;
+    bool hostSync=false,latch=false;
     std::array<bool,8> ties{};
     std::array<int,8> notes {0,0,7,0,12,7,3,7};
     std::array<float,8> velocities {1,1,1,1,1,1,1,1};
@@ -67,7 +67,7 @@ struct SequenceSettings {
 class NoteSequence {
 public:
     void prepare(double sr){rate=sr;reset();}
-    void reset(){keys.reset();remaining=gateRemaining=0;step=0;noteStep=0;sounding=-1;active=false;lastRhythm=0;hostLocked=false;clockReset=false;tieNext=false;}
+    void reset(){keys.reset();physical.reset();lastLatch=false;remaining=gateRemaining=0;step=0;noteStep=0;sounding=-1;active=false;lastRhythm=0;hostLocked=false;clockReset=false;tieNext=false;}
     static bool rhythmHit(int position,int hits,int rotation) {
         const int slot=((position-std::clamp(rotation,0,15))%16+16)%16;
         return (slot*std::clamp(hits,1,16))%16<std::clamp(hits,1,16);
@@ -129,14 +129,19 @@ public:
     void freeClock(){hostLocked=false;}
     template<class Emit> void midi(const unsigned char* d,int n,const SequenceSettings& p,Emit&& emit) {
         if(!p.mode){emit(d,n);return;}
-        keys.midi(d,n);
         const int type=n?d[0]&0xf0:0;
+        if(p.latch!=lastLatch){keys=physical;lastLatch=p.latch;}
+        if(p.latch && n>=3 && type==0x90 && d[2]>0 && physical.count()==0)keys.reset();
+        physical.midi(d,n);
+        const bool release=type==0x80 || (n>=3 && type==0x90 && d[2]==0);
+        if(!p.latch || !release)keys.midi(d,n);
         // The sequencer owns note duration and sustain. Other expression is passed through.
         if(type!=0x80 && type!=0x90 && !(n>=3 && type==0xb0 && d[1]==64))emit(d,n);
         if(n>=3 && type==0xb0 && d[1]==120){sounding=-1;active=false;remaining=0;step=0;noteStep=0;}
     }
     template<class Emit> void tick(const SequenceSettings& p,float bpm,Emit&& emit) {
         if(!p.mode)return;
+        if(p.latch!=lastLatch){keys=physical;lastLatch=p.latch;}
         auto off=[&]{if(sounding>=0){unsigned char d[]={0x80,static_cast<unsigned char>(sounding),0};emit(d,3);sounding=-1;}};
         if(p.rhythm!=lastRhythm){off();active=false;tieNext=false;if(!hostLocked){remaining=0;step=0;noteStep=0;}lastRhythm=p.rhythm;}
         if(clockReset){off();active=false;tieNext=false;clockReset=false;}
@@ -176,7 +181,7 @@ public:
         --remaining;--gateRemaining;
     }
 private:
-    NoteStack keys;double rate=44100,remaining=0,gateRemaining=0;int step=0,sounding=-1,lastRhythm=0;uint64_t noteStep=0;bool active=false,hostLocked=false,clockReset=false,tieNext=false;
+    NoteStack keys,physical;bool lastLatch=false;double rate=44100,remaining=0,gateRemaining=0;int step=0,sounding=-1,lastRhythm=0;uint64_t noteStep=0;bool active=false,hostLocked=false,clockReset=false,tieNext=false;
 };
 class MonoGlide {
 public:

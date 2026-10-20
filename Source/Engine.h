@@ -3,6 +3,7 @@
 #include "VoiceModulation.h"
 #include <memory>
 #include <string>
+#include <vector>
 
 // One engine is accessed by one thread at a time. Construction/loading/configuration
 // belong to the loader thread; render/event calls belong to the audio thread.
@@ -19,6 +20,7 @@ public:
     int regions() const;
     int samples() const;
     std::string unknownOpcodes() const;
+    std::vector<std::string> missingSamples(const std::string& sfzPath);
 private:
     struct Deleter { void operator()(sfizz_synth_t* s) const { sfizz_free(s); } };
     std::unique_ptr<sfizz_synth_t, Deleter> synth;

@@ -27,7 +27,7 @@ public:
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return "ZaZampler"; }
     bool acceptsMidi() const override { return true; }
-    bool producesMidi() const override { return false; }
+    bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return tailSeconds.load(); }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -49,7 +49,7 @@ public:
     void loadBankPatch(const juce::File& root,const juce::String& bookmark,int slot,bool approximateFx,bool applySettings=true);
     bool isLoading() const { return loading.load(); }
     bool isReady() const { return ready.load(); }
-    void panic() { panicRequested.store(true); }
+    void panic() { panicRequested.store(true);fadePanic.store(true); }
     void setUiPitch(int value){value=juce::jlimit(0,16383,value);wheelPitch.store(value);pendingPitch.store(value);}
     void setUiMod(int value){value=juce::jlimit(0,127,value);wheelMod.store(value);pendingMod.store(value);}
     int pitchWheelValue() const{return wheelPitch.load();}
@@ -100,6 +100,18 @@ private:
     int maxBlock = 512;
     int lastChannel = 1;
     Effects effects;
+    OutputLimiter outputLimiter;
+    juce::MidiBuffer generatedMidi;
+    void flushExternalMidi(juce::MidiBuffer&);
+    bool midiOutputWasOn=false;
+    std::array<bool,2048> outputNotes{};
+    std::atomic<bool> fadePanic{false};
+    std::unique_ptr<Instrument> fadingInstrument;
+    juce::AudioBuffer<float> fadeBuffer;
+    VoiceModSettings lastRenderSettings,fadeSettings;
+    bool lastRenderPerVoice=false,fadePerVoice=false;
+    int fadeRemaining=0,fadeLength=1,lastRexPlayback=0,rexLastNote=-1;
+
     EnvelopeGate envelopeGate;
     NoteSequence sequence;
     MonoGlide monoGlide;

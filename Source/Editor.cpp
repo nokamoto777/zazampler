@@ -93,6 +93,11 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
         add("Reset","",217,top+53,119,21,true);
         add("PhaseLock","",337,top+53,120,21,true);
     }
+    knob("seqLatch","",286,155,108,24);
+    knob("midiOutput","",398,155,124,24);
+    knob("outputLimiter","",526,155,115,24);
+    knob("patchCrossfade","",645,155,123,24);
+    knob("rexPlayback","",603,425,145,24);
     knob("envAmpEnabled","",992,423,75,19);
     knob("envModTarget","Mod envelope target",5,15,241,50,false,false,true);
     knob("envModDepth","Depth",274,8,92,70,false,false,true);
@@ -306,6 +311,7 @@ void ZaZamplerEditor::timerCallback() {
     const auto mod=processor.modulationMeter.read();
     const bool modActive=processor.modulationMeter.active.load();
     for(auto& c:controls) {
+        if(c->parameterId=="rexPlayback")c->setVisible(centrePageIndex==0);
         float value=static_cast<float>(c->slider.getValue());bool show=false;
         if(modActive) {
             if(c->parameterId=="cutoff"){value*=std::exp2(mod.cutoffOctaves);show=true;}

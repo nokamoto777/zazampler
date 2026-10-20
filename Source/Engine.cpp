@@ -49,3 +49,21 @@ void Engine::midi(const unsigned char* d, int n, int t) {
     default: break;
     }
 }
+
+#include <filesystem>
+#include <set>
+std::vector<std::string> Engine::missingSamples(const std::string& sfzPath) {
+    std::set<std::string> missing;std::string sample;
+    std::unique_ptr<sfizz_client_t,ClientDeleter> query(sfizz_create_client(&sample));
+    sfizz_set_receive_callback(query.get(),[](void* data,int,const char*,const char* sig,const sfizz_arg_t* args){
+        if(sig && sig[0]=='s' && args[0].s)*static_cast<std::string*>(data)=args[0].s;
+    });
+    for(int i=0;i<regions();++i){
+        sample.clear();const auto path="/region"+std::to_string(i)+"/sample";
+        sfizz_send_message(synth.get(),query.get(),0,path.c_str(),"",nullptr);
+        if(sample.empty() || sample[0]=='*')continue;
+        std::error_code ec;const auto file=std::filesystem::path(sfzPath).parent_path()/sample;
+        if(!std::filesystem::is_regular_file(file,ec))missing.insert(file.string());
+    }
+    return {missing.begin(),missing.end()};
+}
