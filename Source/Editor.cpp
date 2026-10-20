@@ -1,6 +1,7 @@
 #include "Editor.h"
 #include "AboutPanel.h"
 #include "KnobSlider.h"
+#include "PushMapping.h"
 class PanelControl final : public juce::Component {
 public:
     juce::Label label;
@@ -10,8 +11,10 @@ public:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> ba;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sa;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> ca;
+    juce::String parameterId;
     bool isChoice=false;
     PanelControl(juce::AudioProcessorValueTreeState& state,const char* id,const char* title) {
+        parameterId=id?id:"";
         label.setText(title,juce::dontSendNotification);label.setFont(juce::FontOptions(11.f));
         label.setJustificationType(juce::Justification::centred);label.setColour(juce::Label::textColourId,juce::Colour(0xffd4dde1));addAndMakeVisible(label);
         const ParameterSpec* spec=nullptr;
@@ -66,7 +69,7 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     setLookAndFeel(&look);
     addAndMakeVisible(canvas);
     canvas.setComponentID("instrumentCanvas");
-    for(auto* c:std::initializer_list<juce::Component*>{&pitchWheel,&modWheel,&visualizer,&libraries,&presetSearch,&libraryStatus,&scanButton,&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
+    for(auto* c:std::initializer_list<juce::Component*>{&pushSetup,&modulationStatus,&pitchWheel,&modWheel,&visualizer,&libraries,&presetSearch,&libraryStatus,&scanButton,&folderButton,&panicButton,&patches,&status,&patchInfo,&keyboard,&fxPanel,&bankButton,&sfzButton,&detailsButton,&approximateFx,&previous,&next,&keysButton,&effectsButton,&mainButton,&lfoButton,&routingPanel,&envButton,&envRoutingPanel,&matrixButton,&sequenceButton,&matrixPanel,&sequencePanel,&rhythmButton,&rhythmPanel})canvas.addAndMakeVisible(c);
     // Main-panel locations follow the familiar Zampler arrangement.
     knob("cutoff","Cutoff",800,48,72,78);knob("resonance","Reso",872,48,66,78);
     knob("envFilterAmount","Env / oct",938,48,64,78);knob("keytrack","KTrack",1002,48,64,78);
@@ -87,7 +90,8 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
         add("Target",("LFO "+juce::String(row+1)+" target").toRawUTF8(),0,top+10,145,49,true);
         add("Depth","Depth",147,top,67,77,true);
         add("Sync","Clock",214,top+1,112,47,true);add("Division","Division",326,top+1,133,47,true);
-        add("Reset","",217,top+53,237,21,true);
+        add("Reset","",217,top+53,119,21,true);
+        add("PhaseLock","",337,top+53,120,21,true);
     }
     knob("envAmpEnabled","",992,423,75,19);
     knob("envModTarget","Mod envelope target",5,15,241,50,false,false,true);
@@ -134,6 +138,9 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     knob("delayPingPong","Cross",786,25,57,75,true);
     knob("room","Size",858,25,83,75,true);knob("damping","Damp",944,25,83,75,true);
     knob("reverb","Amount",858,103,83,75,true);knob("width","Width",944,103,83,75,true);
+    pushSetup.onClick=[this]{setupPush();};
+    modulationStatus.setFont(juce::FontOptions(10.f));modulationStatus.setColour(juce::Label::textColourId,juce::Colour(0xff65dcf5));
+    modulationStatus.setTooltip("Cyan needle: modulated value. Grey needle: base. Per voice: one rendered voice.");
     libraries.setComponentID("librarySelector");patches.setComponentID("presetSelector");presetSearch.setComponentID("presetSearch");
     libraries.setTooltip("Banks below LIBRARY FOLDER. Select a bank, then a preset.");
     libraries.onChange=[this]{selectLibrary();};
@@ -292,6 +299,25 @@ void ZaZamplerEditor::selectPreset() {
     else if(juce::isPositiveAndBelow(slot,files.size()))processor.load(root,bookmark,files[slot].getRelativePathFrom(root));
 }
 void ZaZamplerEditor::timerCallback() {
+    if(pushParameter>=0 && ++pushTicks>=6) {
+        pushTicks=0;registerPushParameter(processor.parameters,static_cast<size_t>(pushParameter));
+        if(++pushParameter==8){pushParameter=-1;pushSetup.setEnabled(true);processor.log.add("Push setup: 8 parameter gestures sent; save Live default configuration.");}
+    }
+    const auto mod=processor.modulationMeter.read();
+    const bool modActive=processor.modulationMeter.active.load();
+    for(auto& c:controls) {
+        float value=static_cast<float>(c->slider.getValue());bool show=false;
+        if(modActive) {
+            if(c->parameterId=="cutoff"){value*=std::exp2(mod.cutoffOctaves);show=true;}
+            if(c->parameterId=="resonance"){value+=mod.resonance;show=true;}
+            if(c->parameterId=="gain"){value+=20*std::log10(std::max(1.e-9f,mod.amplitude));show=true;}
+            if(c->parameterId=="drive"){value+=mod.driveDb;show=true;}
+        }
+        if(show)c->slider.getProperties().set("modulationPosition",c->slider.valueToProportionOfLength(juce::jlimit(c->slider.getMinimum(),c->slider.getMaximum(),static_cast<double>(value))));
+        else c->slider.getProperties().remove("modulationPosition");
+        if(c->isShowing() && !c->isChoice)c->slider.repaint();
+    }
+    modulationStatus.setText(modActive?(processor.parameters.getRawParameterValue("modScope")->load()>0.5f?"VOICE  ":"GLOBAL  ")+juce::String("LFO ")+juce::String(mod.waves[0],2)+" / "+juce::String(mod.waves[1],2)+" / "+juce::String(mod.waves[2],2)+"\nPAN "+juce::String(mod.pan,2)+"   PITCH "+juce::String(mod.pitchCents,0)+" ct":"MODULATION: idle",juce::dontSendNotification);
     visualizer.update();pitchWheel.setMidiValue(processor.pitchWheelValue());modWheel.setMidiValue(processor.modWheelValue());
     const auto instrumentPath=processor.currentInstrumentPath();
     const bool rex=instrumentPath.endsWithIgnoreCase(".rx2") || instrumentPath.endsWithIgnoreCase(".rex") || instrumentPath.endsWithIgnoreCase(".rcy");
@@ -409,6 +435,7 @@ void ZaZamplerEditor::resized() {
     libraries.setBounds(289,252,459,26);presetSearch.setBounds(289,283,293,25);libraryStatus.setBounds(585,283,163,25);
     previous.setBounds(288,314,28,30);patches.setBounds(321,314,395,30);next.setBounds(721,314,28,30);
     patchInfo.setBounds(288,350,460,68);approximateFx.setBounds(286,454,305,29);detailsButton.setBounds(603,455,145,25);
+    pushSetup.setBounds(270,505,105,23);modulationStatus.setBounds(382,505,290,23);
     keysButton.setBounds(24,505,115,23);effectsButton.setBounds(144,505,115,23);panicButton.setBounds(679,505,94,23);
     fxPanel.setBounds(32,532,1040,183);visualizer.setBounds(40,537,1020,52);pitchWheel.setBounds(40,598,38,104);modWheel.setBounds(80,598,38,104);keyboard.setBounds(126,598,934,104);status.setBounds(24,721,950,28);
 }
@@ -421,4 +448,12 @@ void ZaZamplerEditor::showAbout() {
 void ZaZamplerEditor::showDebug() {
     processor.log.add("Opened debug log");
     debugWindow=std::make_unique<InfoWindow>("ZaZampler debug log",new LogPanel([this]{return processor.debugReport();}));
+}
+
+void ZaZamplerEditor::setupPush() {
+    auto* dialog=new juce::AlertWindow("Push / Live setup",
+        "1. Stop playback and turn automation recording OFF.\n2. Enable Configure in Live's ZaZampler device.\n3. Click Register 8 below.\n4. Disable Configure, then right-click the device title and choose Save as Default Configuration.\n\nCutoff, Resonance, Volume, Amp Attack, Amp Release, LFO 1 Rate, LFO 1 Depth, Reverb.\nExisting configured controls remain. If Live ignores unchanged-value gestures, move these controls manually in Configure mode.",juce::MessageBoxIconType::InfoIcon);
+    dialog->addButton("Register 8",1);dialog->addButton("Cancel",0);
+    juce::Component::SafePointer<ZaZamplerEditor> safe(this);
+    dialog->enterModalState(true,juce::ModalCallbackFunction::create([safe](int result){if(safe && result==1){safe->pushParameter=0;safe->pushTicks=0;safe->pushSetup.setEnabled(false);}}),true);
 }

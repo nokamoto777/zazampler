@@ -6,6 +6,7 @@
 
 struct LfoSettings {
     int shape=0, target=0, sync=0, division=5, retrigger=0;
+    bool phaseLock=false;
     float hz=1.f, skew=0.5f, fade=0.f, depth=0.f;
 };
 using LfoSettingsBank=std::array<LfoSettings,3>;
@@ -33,13 +34,21 @@ public:
         const double tempo=std::isfinite(bpm)?std::clamp(static_cast<double>(bpm),20.,400.):120.;
         return s.sync?tempo/(60.*beats[static_cast<size_t>(std::clamp(s.division,0,10))]):std::clamp(static_cast<double>(s.hz),0.01,30.);
     }
-    LfoModulation tick(const LfoSettingsBank& settings,float bpm,bool noteOn=false) {
+    LfoModulation tick(const LfoSettingsBank& settings,float bpm,bool noteOn=false,bool positionValid=false,double ppq=0) {
         LfoModulation out;
         for(size_t i=0;i<states.size();++i) {
             auto& state=states[i];const auto& p=settings[i];
             if(noteOn) {
                 state.age=0;
                 if(p.retrigger) {state.phase=0;state.held=random(state.seed);}
+            }
+            if(p.phaseLock && p.sync && positionValid && std::isfinite(ppq)) {
+                const double cycles=ppq*frequency(p,bpm)*60./std::clamp(static_cast<double>(bpm),20.,400.);
+                state.phase=cycles-std::floor(cycles);
+                if(p.shape==5) {
+                    uint32_t seed=static_cast<uint32_t>(static_cast<int64_t>(std::fmod(std::floor(cycles),2147483647.))) ^ (0x51f15eU+static_cast<uint32_t>(i)*0x9e3779b9U);
+                    if(seed==0)seed=1;state.held=random(seed);
+                }
             }
             const double skew=std::clamp(static_cast<double>(p.skew),0.05,0.95);
             const double warped=state.phase<skew?0.5*state.phase/skew:0.5+0.5*(state.phase-skew)/(1.-skew);

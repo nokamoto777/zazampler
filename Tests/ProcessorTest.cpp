@@ -28,6 +28,7 @@ static void wait(ZaZamplerProcessor& p){
 #include "WheelLatencyChecks.h"
 #include "ReferenceRender.h"
 #include "ReferenceChecks.h"
+#include "ModulationDisplayChecks.h"
 int main(int argc,char** argv){
     const auto testCache=juce::File::getSpecialLocation(juce::File::tempDirectory).getNonexistentChildFile("zazampler-test-cache",{},false);
     setenv("ZAZAMPLER_CACHE_DIR",testCache.getFullPathName().toRawUTF8(),1);
@@ -46,8 +47,12 @@ int main(int argc,char** argv){
         }
         if(argc==5 && juce::String(argv[1])=="--supplied-bank") {librarychecks::supplied(juce::File(argv[2]),juce::File(argv[3]),juce::File(argv[4]));return 0;}
         if(argc==4 && juce::String(argv[1])=="--snapshot-browser") {librarychecks::run(juce::File(argv[2]),juce::File(argv[3]));return 0;}
-        if(argc==3 && (juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-rhythm" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
+        if(argc==3 && (juce::String(argv[1])=="--snapshot-modulated" || juce::String(argv[1])=="--snapshot" || juce::String(argv[1])=="--snapshot-lfo" || juce::String(argv[1])=="--snapshot-env" || juce::String(argv[1])=="--snapshot-fx" || juce::String(argv[1])=="--snapshot-matrix" || juce::String(argv[1])=="--snapshot-seq" || juce::String(argv[1])=="--snapshot-rhythm" || juce::String(argv[1])=="--snapshot-small" || juce::String(argv[1])=="--snapshot-large" || juce::String(argv[1])=="--snapshot-wide")) {
             ZaZamplerProcessor p;p.prepareToPlay(48000,128);
+            if(juce::String(argv[1])=="--snapshot-modulated") {
+                LfoModulation m;m.cutoffOctaves=-3;m.amplitude=.4f;m.resonance=2;m.driveDb=12;m.waves={.7f,-.3f,.2f};m.pan=.2f;m.pitchCents=45;
+                p.modulationMeter.publish(m,true); // Fixed visual fixture; DSP tested separately.
+            }
             std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
             const juce::String mode(argv[1]);
             const auto title=mode=="--snapshot-rhythm"?"RHYTHM":mode=="--snapshot-lfo"?"LFO ROUTING":mode=="--snapshot-env"?"ENV ROUTING":mode=="--snapshot-fx"?"EFFECTS":mode=="--snapshot-matrix"?"MATRIX":mode=="--snapshot-seq"?"SEQUENCE":"MAIN";
@@ -88,7 +93,7 @@ int main(int argc,char** argv){
         waveformchecks::run();rhythmchecks::run();
         fxchecks::run();lfochecks::run();envelopechecks::run();
         check(argc==2,"demo directory required");juce::File root(argv[1]);
-        wheelchecks::run(root);referencechecks::run(root);advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
+        modulationdisplaychecks::run(root);wheelchecks::run(root);referencechecks::run(root);advancedchecks::run(root);advancedchecks::rex(juce::File::getSpecialLocation(juce::File::tempDirectory));
         librarychecks::run(root);librarychecks::cachingAndReload(root);bankchecks::run(root);performancechecks::run(root.getChildFile("Sine.sfz").getFullPathName().toStdString());performancechecks::processorAudio(root);
         ZaZamplerProcessor p;p.prepareToPlay(48000,128);p.setNonRealtime(true);
         juce::MemoryBlock empty;p.getStateInformation(empty);

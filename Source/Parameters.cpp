@@ -215,6 +215,9 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         ,{"envCurve","Envelope curve",6,0,1,0,1,{"Linear","Exponential"}}
         ,{"envAmpOwnRelease","Amp release source",6,0,1,0,1,{"SFZ","Envelope"}}
         ,{"monoSampleHold","Mono sample selection",7,0,1,0,1,{"Each note","Phrase"}}
+        ,{"lfo1PhaseLock","LFO 1 phase lock",5,0,1,0,1,{"Free phase","DAW phase"}}
+        ,{"lfo2PhaseLock","LFO 2 phase lock",5,0,1,0,1,{"Free phase","DAW phase"}}
+        ,{"lfo3PhaseLock","LFO 3 phase lock",5,0,1,0,1,{"Free phase","DAW phase"}}
     };return specs;
 }
 juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
@@ -248,7 +251,8 @@ LfoSettingsBank readLfoSettings(juce::AudioProcessorValueTreeState& state) {
         {"lfo3Shape","lfo3Target","lfo3Sync","lfo3Division","lfo3Reset","lfo3Rate","lfo3Skew","lfo3Fade","lfo3Depth"}};
     for(size_t i=0;i<3;++i) {
         auto get=[&](int j){return state.getRawParameterValue(ids[i][j])->load();};
-        auto& p=result[i];p.shape=static_cast<int>(get(0));p.target=static_cast<int>(get(1));p.sync=static_cast<int>(get(2));p.division=static_cast<int>(get(3));p.retrigger=static_cast<int>(get(4));
+        static const char* phaseIds[]={"lfo1PhaseLock","lfo2PhaseLock","lfo3PhaseLock"};
+        auto& p=result[i];p.phaseLock=state.getRawParameterValue(phaseIds[i])->load()>0.5f;p.shape=static_cast<int>(get(0));p.target=static_cast<int>(get(1));p.sync=static_cast<int>(get(2));p.division=static_cast<int>(get(3));p.retrigger=static_cast<int>(get(4));
         p.hz=get(5);p.skew=get(6);p.fade=get(7);p.depth=get(8);
     }
     return result;

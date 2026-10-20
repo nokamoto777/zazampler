@@ -53,6 +53,13 @@ public:
         g.fillEllipse(cx-r,cy-r,2*r,2*r);g.setColour(juce::Colour(0xff131313));g.drawEllipse(cx-r,cy-r,2*r,2*r,1.f);
         juce::Path arc;arc.addCentredArc(cx,cy,radius,radius,0,start,start+position*(end-start),true);
         g.setColour(amber);g.strokePath(arc,juce::PathStrokeType(1.8f));
+        const auto modulation=s.getProperties()["modulationPosition"];
+        if(!modulation.isVoid()) {
+            const float a=start+juce::jlimit(0.f,1.f,static_cast<float>(modulation))*(end-start);
+            g.setColour(juce::Colour(0xff65dcf5));
+            g.drawLine(cx+std::sin(a)*r*0.25f,cy-std::cos(a)*r*0.25f,cx+std::sin(a)*(radius+3),cy-std::cos(a)*(radius+3),2.f);
+            g.fillEllipse(cx+std::sin(a)*(radius+3)-2,cy-std::cos(a)*(radius+3)-2,4,4);
+        }
         const float angle=start+position*(end-start);
         g.setColour(enabled?juce::Colour(0xffc9c9c9):juce::Colour(0xff626262));
         g.drawLine(cx+std::sin(angle)*r*0.47f,cy-std::cos(angle)*r*0.47f,cx+std::sin(angle)*r*0.93f,cy-std::cos(angle)*r*0.93f,1.5f);

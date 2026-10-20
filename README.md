@@ -1,4 +1,4 @@
-# ZaZampler 0.9.3 — ZamplerのSFZ音色を利用するサンプラープラグイン
+# ZaZampler 0.9.4 — ZamplerのSFZ音色を利用するサンプラープラグイン
 
 M1 MacBook Pro向け **arm64ネイティブ / AUv3・VST3** のソースプロジェクトです。
 互換用にAUv2とStandaloneもビルドします。JUCE 8.0.6 + sfizz 1.2.3 + VelociLoopsを固定コミットで取得します。
@@ -378,3 +378,24 @@ REX選択時は画面鍵盤もMIDI 0から表示し、最初のスライスを�
 既存DAWプロジェクトの音を勝手に変換しないため、新しい取り込み設定を適用するにはFXBの音色を選び直してください。手動変更は先に保存してください。新しいパラメーターは末尾へ追加し、古い保存状態では従来のLinear／SFZ release／Each noteを既定値にします。
 
 ENV ROUTINGのEnvelope curveはLinear / Exponential、Amp release sourceはSFZ / Envelopeです。Exponentialの時間値は時定数（Attackは約63%に到達する時間）です。Envelope releaseはPer voiceでSFZの既定に近い0–1msのreleaseのみを補います。明示された長いSFZ releaseは保持します。Mono sample selectionはホストのパラメーターからEach note / Phraseを選べます。Phraseは連続するMono演奏中に最初のサンプルを保持し、無音のMIDI間隔で再選択します。
+
+## Push / Liveの初期設定（0.9.4）
+
+Liveは64個を超えるパラメーターを持つプラグインの操作項目を自動展開しません。既存オートメーションを維持するため、ZaZamplerはパラメーターを削減せず、初回だけConfigureで設定します。
+
+1. 再生とオートメーション録音を止め、LiveのZaZamplerデバイスで **Configure** をON。
+2. プラグインの **PUSH SETUP → Register 8** を押す。約1.6秒でCutoff、Resonance、Volume、Amp Attack、Amp Release、LFO 1 Rate、LFO 1 Depth、Reverbへ操作通知を送ります。値は変更しません。
+3. Liveに8項目が追加されたか確認。同値通知をLiveが受け付けない場合は、Configure中にこれらのノブを手動で動かしてください。既存項目は残るため、必要なら削除・並べ替えます。
+4. ConfigureをOFF。Liveのデバイスタイトルを右クリック → **Save as Default Configuration**。
+
+以後新規に読み込むZaZamplerでこの構成を使用できます。既存Set内のデバイスは個別設定が必要な場合があります。Push実機での登録は未検証です。プラグインはLiveのデフォルト設定を直接変更できません。
+
+[Ableton公式: Saving plug-in parameter configurations](https://help.ableton.com/hc/en-us/articles/209073089-Saving-plug-in-parameter-configurations)
+
+## 変調表示 / LFO位相同期（0.9.4）
+
+- Cutoff / Resonance / Volume / Driveに水色の変調指標。灰色の針とオレンジの弧は基準値。30fpsで実際の音声処理値を表示し、LFO・ENV・Matrix・Keytrackを含みます。表示更新はパラメーターやオートメーションを書き換えません。
+- 鍵盤上に3つのLFO値、PAN、PITCHを表示。Per voiceでは1つの処理中ボイスの代表値で、ポリフォニック全体の合計ではありません。Globalは無音時も進み、ホストが音声処理を止めると表示も停止します。
+- 指標はノブの表示範囲へ制限。フィルターOffならCutoffが動いても音は変わりません。Volumeは変調倍率のdB換算で、出力音量メーターではありません。
+- LFO ROUTINGで **Host tempo + DAW phase** を選ぶと、再生中にホストが提供するPPQへ位相を固定。ループ・シーク時のS&Hも再現します。DAW位相はNote resetより優先し、Fadeはノートで再開始します。
+- 停止中・PPQ未提供時は従来の周期動作。Free Hzには位相ロックを適用しません。既存状態とFXB取込はFree phaseを維持。

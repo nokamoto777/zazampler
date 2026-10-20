@@ -26,7 +26,7 @@ public:
     void prepare(double sampleRate);
     void reset();
     void process(float* left,float* right,int count,const FxSettings&,float bpm,const LfoSettingsBank& lfoSettings={},const uint8_t* noteTriggers=nullptr,const EnvelopeSettings& envelopeSettings={},const EnvelopeEvent* envelopeEvents=nullptr,const LfoModulation* modulation=nullptr);
-    LfoModulation modulationTick(const FxSettings&,float bpm,const LfoSettingsBank&,bool noteOn,const EnvelopeSettings&,EnvelopeEvent,const MatrixSettings& = {},const PerformanceFrame& = {});
+    LfoModulation modulationTick(const FxSettings&,float bpm,const LfoSettingsBank&,bool noteOn,const EnvelopeSettings&,EnvelopeEvent,const MatrixSettings& = {},const PerformanceFrame& = {},bool positionValid=false,double ppq=0);
     static float delayMilliseconds(const FxSettings&,float bpm);
 private:
     std::array<bool,32> matrixActive {};

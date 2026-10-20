@@ -174,7 +174,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     } measure{*this,callbackStarted,out.getNumSamples()};
     juce::ScopedNoDenormals noDenormals;
     out.clear(); const int frames = out.getNumSamples();
-    if (frames == 0 || out.getNumChannels() < 2) { midi.clear(); return; }
+    if (frames == 0 || out.getNumChannels() < 2) { modulationMeter.active.store(false);midi.clear(); return; }
     keyboard.processNextMidiBuffer(midi,0,frames,true);
     // Offline export may start immediately after state restoration. Only the
     // non-realtime path waits; the live audio callback never waits for file I/O.
@@ -186,7 +186,7 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     if(isNonRealtime())l.lock();else l.try_lock();
     if (!l.owns_lock() || !instrument) {
         if(!loggedUnavailable){log.audio(DiagnosticLog::unavailable);loggedUnavailable=true;}
-        panicRequested.store(true); midi.clear(); peak.store(0);
+        modulationMeter.active.store(false);panicRequested.store(true); midi.clear(); peak.store(0);
         waveform.push(out.getReadPointer(0),out.getReadPointer(1),frames);return;
     }
     loggedUnavailable=false;
@@ -216,7 +216,9 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     const bool holdSample=parameters.getRawParameterValue("monoSampleHold")->load()>0.5f;
     const int scope=static_cast<int>(parameters.getRawParameterValue("modScope")->load());
     if(seq.mode!=lastSequenceMode || voiceMode!=lastVoiceMode || scope!=lastModScope){log.audio(DiagnosticLog::modes,seq.mode,voiceMode+2*scope);engine.panic();effects.reset();resetPerformance();lastSequenceMode=seq.mode;lastVoiceMode=voiceMode;lastModScope=scope;}
-    VoiceModSettings voiceSettings;voiceSettings.lfos=lfoSettings;voiceSettings.envelopes=envelopeSettings;
+    LfoModulation display;bool displayActive=false;
+    VoiceModSettings voiceSettings;voiceSettings.display=&display;voiceSettings.displayActive=&displayActive;
+    voiceSettings.positionValid=playing && hasPosition;voiceSettings.lfos=lfoSettings;voiceSettings.envelopes=envelopeSettings;
     voiceSettings.matrix=matrixSettings;voiceSettings.filterMode=fx.filterMode;voiceSettings.cutoff=fx.cutoff;
     voiceSettings.expressionKey=voiceMode!=0 && holdSample;
     voiceSettings.resonance=fx.resonance;voiceSettings.keytrack=fx.keytrack;voiceSettings.bpm=bpm;
@@ -269,14 +271,17 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
             }
             sequence.tick(seq,bpm,generated);
             if(voiceMode!=0 && holdSample)performance.note=monoGlide.note();
-            modulationFrames[static_cast<size_t>(i)]=scope?LfoModulation{}:effects.modulationTick(fx,bpm,lfoSettings,triggered,envelopeSettings,gateEvent,matrixSettings,performance);
+            modulationFrames[static_cast<size_t>(i)]=scope?LfoModulation{}:effects.modulationTick(fx,bpm,lfoSettings,triggered,envelopeSettings,gateEvent,matrixSettings,performance,playing && hasPosition,ppq+(start+i)*bpm/(60*rate));
             expressionFrames[static_cast<size_t>(i)]=performance;
             pitchFrames[static_cast<size_t>(i)]=monoGlide.tick(voiceMode!=0,true)+modulationFrames[static_cast<size_t>(i)].pitchCents;
         }
+        displayActive=false;voiceSettings.ppq=ppq+start*bpm/(60*rate);
         voiceSettings.expression=expressionFrames.data();voiceSettings.frames=n;
         engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0,scope?&voiceSettings:nullptr);
+        if(!scope){display=modulationFrames[static_cast<size_t>(n-1)];displayActive=true;}
         effects.process(out.getWritePointer(0,start),out.getWritePointer(1,start),n,fx,bpm,{},nullptr,{},nullptr,modulationFrames.data());
     }
+    modulationMeter.publish(display,displayActive);
     if(onsetOffset>=0){measuringOnset=true;onsetSamples=-onsetOffset;}
     if(measuringOnset) {
         for(int i=juce::jmax(0,onsetOffset);i<frames;++i)
@@ -288,7 +293,8 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
     midi.clear();
     const double repeats=fx.delayFeedback>0 ? 1.+std::ceil(std::log(0.0001)/std::log(juce::jlimit(0.0001f,0.95f,fx.delayFeedback))) : 1.;
     const double delayTail=fx.delayMix>0 ? Effects::delayMilliseconds(fx,bpm)*0.001*repeats : 0.;
-    tailSeconds.store(juce::jmax(10.,delayTail+(fx.reverb>0 ? 30. : 0.)));
+    const double envelopeTail=envelopeSettings.ampEnabled?envelopeSettings.amp.release*(envelopeSettings.amp.exponential?std::log(1.e9):1.):0.;
+    tailSeconds.store(juce::jmax(10.,envelopeTail+delayTail+(fx.reverb>0 ? 30. : 0.)));
     peak.store(juce::jmax(out.getMagnitude(0,0,frames),out.getMagnitude(1,0,frames)));
 }
 void ZaZamplerProcessor::getStateInformation(juce::MemoryBlock& dest) {

@@ -6,6 +6,7 @@
 #include "FolderAccess.h"
 #include "LibraryCatalog.h"
 #include "WaveformCapture.h"
+#include "ModulationMeter.h"
 #include "DiagnosticLog.h"
 #include "RexImport.h"
 #include <thread>
@@ -57,6 +58,7 @@ public:
     juce::String debugReport();
     LibraryCatalog libraries;
     WaveformCapture waveform;
+    ModulationMeter modulationMeter;
     juce::String currentBankPath() const;
     juce::String currentInstrumentPath() const;
     juce::AudioProcessorValueTreeState parameters;
