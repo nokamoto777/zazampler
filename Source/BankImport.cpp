@@ -46,7 +46,9 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
     }
     // Time/rate tapers are explicitly approximate, while slot and route IDs
     // come from the manufacturer's parameter descriptors and route-name tables.
-    auto seconds=[](float value){return 10.f*value*value*value;};
+    // Empirical time constants from RX reference audio; not an exact DSP clone.
+    auto seconds=[](float value){return value<=0?0.f:0.001f*std::pow(10000.f,value);};
+    set("monoSampleHold",1);set("envCurve",1);set("envAmpOwnRelease",1);
     const char* envelopes[]={"envAmp","envFilter","envMod"};
     const int bases[]={18,22,57};
     for(int e=0;e<3;++e) {
@@ -57,7 +59,7 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
         set((prefix+"Release").toRawUTF8(),seconds(p[base+3]));
     }
     set("envAmpEnabled",1);set("modScope",1);
-    set("envFilterAmount",10*p[30]-5);set("keytrack",p[26]);
+    set("envFilterAmount",5*p[30]);set("keytrack",p[26]);
     set("voiceMode",p[127]>=0.5f?1.f:0.f);set("glide",2*p[78]*p[78]);
     for(int i=0;i<3;++i) {
         const auto prefix="lfo"+juce::String(i+1);const auto base=static_cast<size_t>(33+9*i);
@@ -65,7 +67,7 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
         set((prefix+"Rate").toRawUTF8(),0.01f*std::pow(3000.f,p[base+1]));
         set((prefix+"Division").toRawUTF8(),static_cast<float>(choice(p[base+1],11)));
         set((prefix+"Skew").toRawUTF8(),juce::jlimit(0.05f,0.95f,p[base+2]));
-        set((prefix+"Fade").toRawUTF8(),seconds(p[base+3]));
+        set((prefix+"Fade").toRawUTF8(),10.f*std::pow(p[base+3],3.f));
         set((prefix+"Sync").toRawUTF8(),p[base+4]>=0.5f?1.f:0.f);
         set((prefix+"Reset").toRawUTF8(),p[base+5]>=0.5f?1.f:0.f);
     }
@@ -86,7 +88,11 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
         const auto prefix="matrix"+juce::String(static_cast<int>(i)+1);
         set((prefix+"Source").toRawUTF8(),static_cast<float>(mappedSource));
         set((prefix+"Target").toRawUTF8(),static_cast<float>(mappedTarget));
-        set((prefix+"Depth").toRawUTF8(),(2*p[160+i]-1)*(dst==2?1.f/12.f:1.f));
+        float depth=2*p[160+i]-1;
+        // Pitch Semi is discrete; treating its near-centre stored value as a
+        // fractional semitone detuned the supplied RX reference presets.
+        if(dst==1)depth=std::round(12*depth)/12;
+        set((prefix+"Depth").toRawUTF8(),depth*(dst==2?1.f/12.f:1.f));
     }
     set("seqRhythm",0);set("seqHostSync",p[114]>=0.5f?1.f:0.f);
     set("seqOctaves",static_cast<float>(choice(p[70],3)+1));
@@ -97,7 +103,8 @@ BankConversion translateZamplerPatch(const ZamplerPatch& patch) {
         set("seqMode",mode==1?2.f:1.f);
         result.warnings.add("Arpeggiator timing/range imported approximately. Original mode "+juce::String(mode)+" uses "+(mode==1?juce::String("Down"):juce::String("Up"))+". Packed Arp/ArpFinger step data, original ties and free-running rate are not decoded; edit SEQUENCE as needed.");
     }
-    result.warnings.add("LFO/envelope/glide/keytrack and supported matrix routes imported with approximate curves. Per-voice envelopes multiply the SFZ envelopes; source sample/voice lifetime still applies. LFO shape order and synced division scaling need auditory calibration against Zampler.");
+    result.warnings.add("Mono phrase sample selection and discrete Pitch Semi were calibrated on four RX references; modulation depth ranges remain approximate.");
+    result.warnings.add("LFO/envelope/glide/keytrack and supported matrix routes imported with approximate curves. Per-voice envelopes multiply SFZ envelopes. Envelope-owned release extends only the near-zero default SFZ release; explicit longer SFZ release and sample endings still apply. Exponential ADSR times are empirical time constants, not exact recovered curves. LFO shape order and synced division scaling need auditory calibration against Zampler.");
     return result;
 }
 SampleResolution resolveBankSample(const ZamplerPatch& p,const juce::File& bank,const juce::File& root,

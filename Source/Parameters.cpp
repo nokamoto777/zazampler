@@ -212,6 +212,9 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         {"seqTie7","Step 7 tie to next",8,0,1,0,1,{"Play","Tie"}},
         {"seqTie8","Step 8 tie to next",8,0,1,0,1,{"Play","Tie"}}
         ,{"rexPage","REX slice page (128 notes per page)",8,0,31,0,1,{}}
+        ,{"envCurve","Envelope curve",6,0,1,0,1,{"Linear","Exponential"}}
+        ,{"envAmpOwnRelease","Amp release source",6,0,1,0,1,{"SFZ","Envelope"}}
+        ,{"monoSampleHold","Mono sample selection",7,0,1,0,1,{"Each note","Phrase"}}
     };return specs;
 }
 juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
@@ -257,6 +260,8 @@ EnvelopeSettings readEnvelopeSettings(juce::AudioProcessorValueTreeState& state)
     p.amp={get("envAmpAttack"),get("envAmpDecay"),get("envAmpSustain"),get("envAmpRelease")};
     p.filter={get("envFilterAttack"),get("envFilterDecay"),get("envFilterSustain"),get("envFilterRelease")};
     p.mod={get("envModAttack"),get("envModDecay"),get("envModSustain"),get("envModRelease")};
+    p.amp.exponential=p.filter.exponential=p.mod.exponential=get("envCurve")>0.5f;
+    p.ownRelease=get("envAmpOwnRelease")>0.5f;
     p.ampEnabled=get("envAmpEnabled")>0.5f;p.filterOctaves=get("envFilterAmount");
     p.modTarget=static_cast<int>(get("envModTarget"));p.modDepth=get("envModDepth");return p;
 }

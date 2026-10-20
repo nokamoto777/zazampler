@@ -95,6 +95,8 @@ ZaZamplerEditor::ZaZamplerEditor(ZaZamplerProcessor& p)
     knob("voiceMode","Voice mode",5,79,200,49,false,false,true);
     knob("modScope","Modulation scope",5,130,270,49,false,false,true);
     knob("rexPage","REX page",350,130,90,70,false,false,true);
+    knob("envCurve","Envelope curve",5,185,200,49,false,false,true);
+    knob("envAmpOwnRelease","Amp release source",220,185,220,49,false,false,true);
     canvas.addAndMakeVisible(matrixViewport);matrixViewport.setViewedComponent(&matrixPanel,false);
     for(int row=0;row<32;++row) {
         const auto prefix=juce::String("matrix")+juce::String(row+1);
@@ -363,8 +365,7 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
     } else if(centrePageIndex==2) {
 
 
-        text("Per voice: independent LFOs and ADSR for every note.",300,432,440,22,11.f,ink);
-        text("Global: legacy shared modulation / sustain supported.",300,455,440,22,11.f,ink);
+        text("Per voice: independent LFOs and ADSR for every note.",300,464,440,22,11.f,ink);
     } else if(centrePageIndex==3) {
         text("32 ROUTES (SCROLL) / PITCH DEPTH 1 = 12 SEMITONES",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==5) {

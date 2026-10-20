@@ -181,8 +181,8 @@ private:
 class MonoGlide {
 public:
     void prepare(double sr){rate=sr;reset();}
-    void reset(){keys.reset();sounding=-1;current=target=increment=0;left=0;}
-    template<class Emit> void midi(const unsigned char* d,int n,bool mono,float seconds,Emit&& emit) {
+    void reset(){keys.reset();sampleAnchor=engineNote=-1;current=target=increment=0;left=0;}
+    template<class Emit> void midi(const unsigned char* d,int n,bool mono,float seconds,Emit&& emit,bool holdSample=false) {
         if(!mono){emit(d,n);return;}
         const int old=keys.latest();keys.midi(d,n);const int key=keys.latest();
         const int type=n?d[0]&0xf0:0;
@@ -190,17 +190,20 @@ public:
         if(n>=3 && type==0xb0 && d[1]==120){reset();return;}
         const bool retrigger=n>=3 && type==0x90 && d[2]>0;
         if(key!=old || retrigger) {
-            if(sounding>=0){unsigned char off[]={0x80,static_cast<unsigned char>(sounding),0};emit(off,3);}
-            sounding=key;
+            if(engineNote>=0){unsigned char off[]={0x80,static_cast<unsigned char>(engineNote),0};emit(off,3);}
+            engineNote=-1;
             if(key>=0) {
                 target=static_cast<double>(key);
                 if(old<0 || seconds<=0){current=target;left=0;increment=0;}
                 else {left=std::max(1,static_cast<int>(std::round(seconds*rate)));increment=(target-current)/left;}
-                unsigned char on[]={0x90,static_cast<unsigned char>(key),static_cast<unsigned char>(keys.velocity(key))};emit(on,3);
+                if(sampleAnchor<0)sampleAnchor=key;
+                engineNote=holdSample?sampleAnchor:key;
+                unsigned char on[]={0x90,static_cast<unsigned char>(engineNote),static_cast<unsigned char>(keys.velocity(key))};emit(on,3);
             }
         }
     }
-    float tick(bool mono,bool absolute=false){const float cents=mono?static_cast<float>((absolute?current:current-target)*100.):0.f;if(left>0){current+=increment;if(--left==0)current=target;}return cents;}
+    float note() const{return static_cast<float>(target);}
+    float tick(bool mono,bool absolute=false){if(keys.latest()<0)sampleAnchor=-1;const float cents=mono?static_cast<float>((absolute?current:current-target)*100.):0.f;if(left>0){current+=increment;if(--left==0)current=target;}return cents;}
 private:
-    NoteStack keys;double rate=44100,current=0,target=0,increment=0;int left=0,sounding=-1;
+    NoteStack keys;double rate=44100,current=0,target=0,increment=0;int left=0,sampleAnchor=-1,engineNote=-1;
 };

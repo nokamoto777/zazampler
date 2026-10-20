@@ -20,3 +20,6 @@
 - macOSの各DAW・AUv3サンドボックス・実際の市販REX素材での検証は実機確認が必要。
 
 提供されたColours FXBは読み込みを検証。対応SFZ/WAVがないため出音比較は未実施。
+
+
+0.9.3: 提供されたRXの4音色に対する実音比較を追加。Filter ENVゼロ、Pitch Semiの量子化、指数ENV、Monoのフレーズ内サンプル保持、既定SFZ releaseの途中切れを修正。完全な音の一致ではない。残差と測定条件はREFERENCE_AUDIO.mdを参照。
