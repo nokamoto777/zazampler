@@ -4,7 +4,7 @@ function(zazampler_patch file before after)
   file(READ "${file}" text)
   # Earlier extensions may split a previously inserted block; recognize the
   # unique field/handler before applying that older patch again.
-  foreach(marker "const auto* zazamplerSettings = static_cast<const VoiceModSettings*>" "impl.zazamplerMod_.prepare(impl.sampleRate_);" "impl.zazamplerMod_.process(buffer.getSpan(0).data()" "const float* zazamplerPitch = nullptr;" "const void* zazamplerVoiceSettings = nullptr;" "MATCH(\"/zazampler/pitch\", \"bi\")" "unsigned zazamplerOffset_ = 0;" "pitchSpan[i] += cfg.zazamplerPitch" "pitchSpan[i] += zazamplerMod_.pitch")
+  foreach(marker "MATCH(\"/zazampler/voice\", \"b\")" "MATCH(\"/zazampler/unavailable\", \"\")" "const auto* zazamplerSettings = static_cast<const VoiceModSettings*>" "impl.zazamplerMod_.prepare(impl.sampleRate_);" "impl.zazamplerMod_.process(buffer.getSpan(0).data()" "const float* zazamplerPitch = nullptr;" "const void* zazamplerVoiceSettings = nullptr;" "MATCH(\"/zazampler/pitch\", \"bi\")" "unsigned zazamplerOffset_ = 0;" "pitchSpan[i] += cfg.zazamplerPitch" "pitchSpan[i] += zazamplerMod_.pitch")
     string(FIND "${after}" "${marker}" in_after)
     string(FIND "${text}" "${marker}" in_file)
     if(NOT in_after EQUAL -1 AND NOT in_file EQUAL -1)

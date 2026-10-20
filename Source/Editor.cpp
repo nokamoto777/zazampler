@@ -192,6 +192,7 @@ void ZaZamplerEditor::bottomPage(bool effects) {
     effectsButton.setToggleState(effects,juce::dontSendNotification);keysButton.setToggleState(!effects,juce::dontSendNotification);canvas.repaint();
 }
 void ZaZamplerEditor::centrePage(int page) {
+    for(auto& c:controls)if(c->parameterId=="rexPlayback")c->setVisible(page==0);
     centrePageIndex=page;const bool routing=page!=0;showRouting=routing;routingPanel.setVisible(page==1);envRoutingPanel.setVisible(page==2);matrixViewport.setVisible(page==3);matrixPanel.setVisible(true);sequencePanel.setVisible(page==4);rhythmPanel.setVisible(page==5);
     for(auto* c:std::initializer_list<juce::Component*>{&libraries,&presetSearch,&libraryStatus,&scanButton,&bankButton,&folderButton,&sfzButton,&previous,&patches,&next,&patchInfo,&approximateFx,&detailsButton})c->setVisible(!routing);
     mainButton.setToggleState(!routing,juce::dontSendNotification);lfoButton.setToggleState(page==1,juce::dontSendNotification);envButton.setToggleState(page==2,juce::dontSendNotification);matrixButton.setToggleState(page==3,juce::dontSendNotification);sequenceButton.setToggleState(page==4,juce::dontSendNotification);rhythmButton.setToggleState(page==5,juce::dontSendNotification);canvas.repaint();
@@ -391,7 +392,7 @@ void ZaZamplerEditor::paintPanel(juce::Graphics& g) {
 
     if(!showRouting) {
         g.setColour(juce::Colour(0xff6b98b3));g.drawLine(287,420,750,420,1.f);
-        text("POLYPHONY  128     /     SFZ SAMPLE ENGINE",289,426,440,19,11.f,ink);
+        text("POLYPHONY  128",289,426,280,19,11.f,ink);
     } else if(centrePageIndex==1) {
         text("LFO routing + matrix; Global / Per voice in ENV ROUTING.",289,477,462,15,10.f,ink);
     } else if(centrePageIndex==2) {

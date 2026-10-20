@@ -23,7 +23,7 @@ void ZaZamplerProcessor::prepareToPlay(double r, int b) {
     setLatencySamples(0);diagnosticRate.store(r>0?r:44100.);
     rate = r > 0 ? r : 44100.; maxBlock = juce::jmax(1,b);
     if (instrument) instrument->engine->prepare(rate,maxBlock);
-    outputLimiter.prepare(rate);generatedMidi.ensureSize(262144);fadeBuffer.setSize(2,maxBlock);fadeRemaining=0;
+    outputLimiter.prepare(rate);generatedMidi.ensureSize(262144);fadeBuffer.setSize(2,maxBlock);fadePitchFrames.resize(static_cast<size_t>(maxBlock));fadeExpressionFrames.resize(static_cast<size_t>(maxBlock));fadeRemaining=0;
     effects.prepare(rate);sequence.prepare(rate);monoGlide.prepare(rate);performance={};
     modulationFrames.resize(static_cast<size_t>(maxBlock));pitchFrames.resize(static_cast<size_t>(maxBlock));expressionFrames.resize(static_cast<size_t>(maxBlock));
     envelopeGate.reset();
@@ -164,6 +164,7 @@ void ZaZamplerProcessor::loadLoop() {
                 if(parameters.getRawParameterValue("patchCrossfade")->load()>0.5f && instrument && peak.load()>1.e-6f){
                     fadingInstrument=std::move(instrument);fadeSettings=lastRenderSettings;
                     fadeSettings.expression=nullptr;fadeSettings.display=nullptr;fadeSettings.displayActive=nullptr;
+                    fadePitch=lastRenderPitch;fadeAbsolutePitch=lastVoiceMode!=0;fadeExpression=performance;
                     fadePerVoice=lastRenderPerVoice;fadeLength=std::max(1,static_cast<int>(rate*.02));fadeRemaining=fadeLength;
                 }
                 instrument.swap(candidate);panicRequested.store(true);
@@ -322,10 +323,13 @@ void ZaZamplerProcessor::processBlock(juce::AudioBuffer<float>& out, juce::MidiB
         displayActive=false;voiceSettings.ppq=ppq+start*bpm/(60*rate);
         voiceSettings.expression=expressionFrames.data();voiceSettings.frames=n;
         engine.render(out.getWritePointer(0,start),out.getWritePointer(1,start),n,pitchFrames.data(),voiceMode!=0,scope?&voiceSettings:nullptr);
+        lastRenderPitch=pitchFrames[static_cast<size_t>(n-1)];
         lastRenderSettings=voiceSettings;lastRenderSettings.expression=nullptr;lastRenderSettings.display=nullptr;lastRenderSettings.displayActive=nullptr;lastRenderPerVoice=scope!=0;
         if(fadingInstrument && fadeRemaining>0){
             fadeSettings.frames=n;fadeSettings.ppq=voiceSettings.ppq;fadeSettings.positionValid=voiceSettings.positionValid;
-            fadingInstrument->engine->render(fadeBuffer.getWritePointer(0),fadeBuffer.getWritePointer(1),n,nullptr,false,fadePerVoice?&fadeSettings:nullptr);
+            std::fill_n(fadePitchFrames.begin(),n,fadePitch);std::fill_n(fadeExpressionFrames.begin(),n,fadeExpression);
+            fadeSettings.expression=fadeExpressionFrames.data();
+            fadingInstrument->engine->render(fadeBuffer.getWritePointer(0),fadeBuffer.getWritePointer(1),n,fadePitchFrames.data(),fadeAbsolutePitch,fadePerVoice?&fadeSettings:nullptr);
             for(int i=0;i<n;++i){const float old=static_cast<float>(fadeRemaining)/fadeLength;
                 for(int c=0;c<2;++c)out.setSample(c,start+i,out.getSample(c,start+i)*(1-old)+fadeBuffer.getSample(c,i)*old);
                 if(fadeRemaining>0)--fadeRemaining;

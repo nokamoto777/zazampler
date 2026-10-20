@@ -235,3 +235,17 @@ Linux Releaseでengine_audio / bank_format / processor_stateの3件が成功。�
 - 固定テレメトリーによる水色指標とLFO ROUTING画面をPNGで確認。
 
 Live/Push実機でConfigure登録とデフォルト再読込は未検証。macOS arm64はPRのActionsで別途確認。UIの同値通知をLiveが無視する場合はREADMEの手動Configure手順を使用する。
+
+## 0.9.5 — 2026-10-21
+
+Linux Releaseでengine_audio / bank_format / processor_stateの3件が成功（計2.18秒）。以下を追加確認。
+
+- Latchの保持、コード置換、解除時の停止。
+- MIDI出力のチャンネル・サンプル位置保持と、出力無効化時のNote Off。
+- ステレオ連動リミッターのピーク制限、左右比、回復。
+- REXクロックのブロックサイズ不変性と、Processorのホスト再生・シーク・停止。
+- 一部サンプルが欠けたSFZの診断と、20 ms音色切替の発音・終了。
+- sfizzパッチを繰り返し適用しても変更が増えず、各OSCハンドラーが1個に保たれること。
+- MAIN / LFO画面の画像で追加コントロールの配置とページ切替時の表示を確認。
+
+macOSビルドはPRのActionsで別途確認。Live/Push実機の操作、MIDI出力ルーティング、実REXライブラリ全般の再生は未検証。リミッターはサンプルピーク方式で、REX Host loopにはタイムストレッチを含まない。

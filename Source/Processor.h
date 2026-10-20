@@ -108,6 +108,10 @@ private:
     std::atomic<bool> fadePanic{false};
     std::unique_ptr<Instrument> fadingInstrument;
     juce::AudioBuffer<float> fadeBuffer;
+    std::vector<float> fadePitchFrames;
+    std::vector<PerformanceFrame> fadeExpressionFrames;
+    float lastRenderPitch=0,fadePitch=0;bool fadeAbsolutePitch=false;
+    PerformanceFrame fadeExpression;
     VoiceModSettings lastRenderSettings,fadeSettings;
     bool lastRenderPerVoice=false,fadePerVoice=false;
     int fadeRemaining=0,fadeLength=1,lastRexPlayback=0,rexLastNote=-1;
