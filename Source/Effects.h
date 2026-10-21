@@ -17,6 +17,7 @@ struct FxSettings {
     int delaySync=0, delayDivision=4;
     float reverb=0, room=0.65f, damping=0.45f, width=1;
     float gainDb=0;
+    bool spaceSquaredMix=false;
 };
 
 // Stereo master effects, not a model of Zampler's proprietary/per-voice DSP.

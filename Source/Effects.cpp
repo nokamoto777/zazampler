@@ -57,7 +57,8 @@ void Effects::process(float* l,float* r,int n,const FxSettings& p,float bpm,cons
     if(initial) {for(size_t j=0;j<std::size(targets);++j)smooth[j].value=targets[j];filterWeights[static_cast<size_t>(mode)]=1;outputGain.value=std::pow(10.f,p.gainDb/20.f);initial=false;}
     // Account for JUCE reverb internal dry x2 / wet x3 scaling.
     juce::Reverb::Parameters rp;rp.roomSize=p.room;rp.damping=p.damping;rp.width=p.width;
-    rp.wetLevel=p.reverb/3.f;rp.dryLevel=(1.f-p.reverb)*0.5f;reverb.setParameters(rp);
+    const float reverbMix=p.spaceSquaredMix?p.reverb*p.reverb:p.reverb;
+    rp.wetLevel=reverbMix/3.f;rp.dryLevel=(1.f-reverbMix)*0.5f;reverb.setParameters(rp);
     for(int i=0;i<n;++i) {
         float v[22];for(size_t j=0;j<std::size(targets);++j)v[j]=smooth[j].tick(targets[j],smoothing);
         auto mod=modulation?modulation[i]:modulationTick(p,bpm,lfoSettings,noteTriggers && noteTriggers[i]!=0,envelopeSettings,envelopeEvents?envelopeEvents[i]:EnvelopeEvent{});
@@ -101,7 +102,8 @@ void Effects::process(float* l,float* r,int n,const FxSettings& p,float bpm,cons
         const float dl=read(delayBuffer[0],delayWrite,v[18]),dr=read(delayBuffer[1],delayWrite,v[18]);
         delayBuffer[0][delayWrite]=x[0]+v[19]*(dl+(dr-dl)*v[20]);
         delayBuffer[1][delayWrite]=x[1]+v[19]*(dr+(dl-dr)*v[20]);
-        l[i]=x[0]+v[17]*(dl-x[0]);r[i]=x[1]+v[17]*(dr-x[1]);
+        const float delayMix=p.spaceSquaredMix?v[17]*v[17]:v[17];
+        l[i]=x[0]+delayMix*(dl-x[0]);r[i]=x[1]+delayMix*(dr-x[1]);
         chorusWrite=(chorusWrite+1)%chorusBuffer[0].size();delayWrite=(delayWrite+1)%delayBuffer[0].size();
         chorusPhase+=2*pi*v[11]/rate;phaserPhase+=2*pi*v[14]/rate;
         if(chorusPhase>=2*pi)chorusPhase-=2*pi;

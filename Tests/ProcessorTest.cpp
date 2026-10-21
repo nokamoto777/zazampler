@@ -27,6 +27,7 @@ static void wait(ZaZamplerProcessor& p){
 #include "AdvancedChecks.h"
 #include "WheelLatencyChecks.h"
 #include "ReferenceRender.h"
+#include "FxReferenceRender.h"
 #include "ReferenceChecks.h"
 #include "ModulationDisplayChecks.h"
 #include "RemainingChecks.h"
@@ -36,6 +37,7 @@ int main(int argc,char** argv){
     struct CacheCleanup {juce::File file;~CacheCleanup(){file.deleteRecursively();}} cacheCleanup{testCache};
     juce::ScopedJuceInitialiser_GUI initialise;
     try {
+        if(argc>=7 && juce::String(argv[1])=="--render-fx")return renderFxReference(argc,argv);
         if(argc>=8 && juce::String(argv[1])=="--render-bank")return renderReference(argc,argv);
         if(argc==3 && (juce::String(argv[1])=="--snapshot-about" || juce::String(argv[1])=="--snapshot-debug")) {
             ZaZamplerProcessor processor;processor.prepareToPlay(48000,128);

@@ -1,3 +1,10 @@
+# 未リリース — 分離FX検証
+
+- 本番Effectsのみを動かす軽量Linux検証プログラムと053分離録音の比較スクリプトを追加。
+- FXB経由の分離FXレンダーCLIと比較スクリプトを追加。
+- Delay/Reverb Mixの二乗カーブを任意パラメーターとして追加。既定値とFXB取り込みはLinearのまま。
+- Linear/Squaredの直達音・echoを回帰テスト。測定結果はdocs/ISOLATED_FX.md。
+
 # 0.9.5 — Remaining playback features
 
 - Arpラッチ、生成MIDI出力、サンプルピークリミッターを追加。

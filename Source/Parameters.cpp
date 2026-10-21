@@ -223,6 +223,7 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         ,{"outputLimiter","Output limiter",4,0,1,0,1,{"Limiter off","Limiter on"}}
         ,{"rexPlayback","REX playback",8,0,1,0,1,{"Slice keys","Host loop"}}
         ,{"patchCrossfade","Patch crossfade",4,0,1,1,1,{"Cut","20 ms fade"}}
+        ,{"spaceMixCurve","Delay/reverb mix curve",3,0,1,0,1,{"Linear","Squared"}}
     };return specs;
 }
 juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
@@ -237,6 +238,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
 FxSettings readFxSettings(juce::AudioProcessorValueTreeState& state) {
     FxSettings p;
     auto get=[&state](const char* id){return state.getRawParameterValue(id)->load();};
+    p.spaceSquaredMix=get("spaceMixCurve")>0.5f;
     p.keytrack=get("keytrack");p.gainDb=get("gain");p.filterMode=static_cast<int>(get("filterMode"));p.cutoff=get("cutoff");p.resonance=get("resonance");
     p.drive=get("drive");p.driveMix=get("driveMix");
     p.eq1Hz=get("eq1Hz");p.eq1Db=get("eq1Db");p.eq1Q=get("eq1Q");p.eq2Hz=get("eq2Hz");p.eq2Db=get("eq2Db");p.eq2Q=get("eq2Q");
