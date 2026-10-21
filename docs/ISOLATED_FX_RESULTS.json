@@ -1,0 +1,170 @@
+{
+  "method": "Production Effects.cpp; original dry as input, no sampler/filter/voice path, no alignment or normalization.",
+  "settings_source": "Explicit current import values of supplied patch 053, rounded raw values; not a live importer test.",
+  "block_frames": 128,
+  "input_sha256": "9db3f305433d23bf238feba4dce5009c5747f30052bf8813a20cdc633793e285",
+  "results": {
+    "none-linear": {
+      "settings": {
+        "spaceSquaredMix": 0
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "9db3f305433d23bf238feba4dce5009c5747f30052bf8813a20cdc633793e285",
+      "render_sha256": "64bc867c0ed77896a3a09d35bd6bb3bbde97ac54794cdae9a6e2c93074c95e87",
+      "rms_difference_db": 0.0,
+      "relative_waveform_error": 0.0,
+      "waveform_correlation": 0.9999999999999999,
+      "reference_peak": 0.307281494140625,
+      "render_peak": 0.307281494140625,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    },
+    "drive-linear": {
+      "settings": {
+        "drive": 15,
+        "driveMix": 1,
+        "spaceSquaredMix": 0
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "498b7e352f151e1e243d64d7d2c500f43d02aa16be5c5466a2a5cb0666b04e1a",
+      "render_sha256": "0292e050dec9593dc1af71f45dbe821b3ce66b1056ca8630e08e59ae62bfd844",
+      "rms_difference_db": -0.49270593638544474,
+      "relative_waveform_error": 0.1646476162254226,
+      "waveform_correlation": 0.9872637700127691,
+      "reference_peak": 0.402130126953125,
+      "render_peak": 0.3958952724933624,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    },
+    "phaser-linear": {
+      "settings": {
+        "phaserMix": 1,
+        "phaserRate": 0.05,
+        "phaserDepth": 0,
+        "phaserFeedback": 0,
+        "spaceSquaredMix": 0
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "0f90cec7e0f8b5674e41afa06232b84f48f52b022064c2f8a2e99ef7c91991a7",
+      "render_sha256": "ef2c480220ebee3c367266ed9734454fbcce471072fda35ea03f731157f1b4db",
+      "rms_difference_db": -6.479368989645932,
+      "relative_waveform_error": 0.885449371940055,
+      "waveform_correlation": 0.464831809116986,
+      "reference_peak": 0.59033203125,
+      "render_peak": 0.29222339391708374,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    },
+    "delay-linear": {
+      "settings": {
+        "delayMix": 0.325,
+        "delayMs": 129.13084580693112,
+        "delayFeedback": 0.30874999999999997,
+        "delayPingPong": 1,
+        "spaceSquaredMix": 0
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "155631b0327af4ee6f232b26ed226ca53056ddca876488bf64794034b418bed7",
+      "render_sha256": "d82277ac4e943068eacdc147570213921596b1f40a3b7d567152282785bdb857",
+      "rms_difference_db": -1.7972188612185849,
+      "relative_waveform_error": 0.4736182281220677,
+      "waveform_correlation": 0.8835436463207277,
+      "reference_peak": 0.294036865234375,
+      "render_peak": 0.29430246353149414,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    },
+    "delay-squared": {
+      "settings": {
+        "delayMix": 0.325,
+        "delayMs": 129.13084580693112,
+        "delayFeedback": 0.30874999999999997,
+        "delayPingPong": 1,
+        "spaceSquaredMix": 1
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "155631b0327af4ee6f232b26ed226ca53056ddca876488bf64794034b418bed7",
+      "render_sha256": "f1db8553e34d6d182d50f3a7e4f74e8d64d84b00fd4548d26b9fa38d4dee2578",
+      "rms_difference_db": -0.07104577286546968,
+      "relative_waveform_error": 0.1763755569870651,
+      "waveform_correlation": 0.9843515370809538,
+      "reference_peak": 0.294036865234375,
+      "render_peak": 0.29414114356040955,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    },
+    "reverb-linear": {
+      "settings": {
+        "reverb": 0.515,
+        "room": 0.63,
+        "damping": 1,
+        "width": 1,
+        "spaceSquaredMix": 0
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "03460ea1987d142bbedb692d701d167707cfddfb85c90fca8a04d266b45a7692",
+      "render_sha256": "d627b8a8776ea459ad715dde1be5695cb170ec7d45e8767eb131e740d5e6ae88",
+      "rms_difference_db": -1.252089347576979,
+      "relative_waveform_error": 0.7135988832458338,
+      "waveform_correlation": 0.7163162015713482,
+      "reference_peak": 0.4061279296875,
+      "render_peak": 0.36001691222190857,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    },
+    "reverb-squared": {
+      "settings": {
+        "reverb": 0.515,
+        "room": 0.63,
+        "damping": 1,
+        "width": 1,
+        "spaceSquaredMix": 1
+      },
+      "sample_rate": 44100,
+      "frames": 705600,
+      "channels": 2,
+      "reference_sha256": "03460ea1987d142bbedb692d701d167707cfddfb85c90fca8a04d266b45a7692",
+      "render_sha256": "659d48f40b604ec8980656faa21ac19e9fff5a80caa789d819205f74dc533a73",
+      "rms_difference_db": 0.08478920615535573,
+      "relative_waveform_error": 0.5500673666663013,
+      "waveform_correlation": 0.8502302288263007,
+      "reference_peak": 0.4061279296875,
+      "render_peak": 0.303952693939209,
+      "reference_near_full_scale_samples": 0,
+      "render_near_full_scale_samples": 0,
+      "note": "No alignment or gain normalization. Correlation/error are not perceptual similarity scores."
+    }
+  },
+  "dry_coefficient_estimate": {
+    "delay": {
+      "original": 0.8906677195139141,
+      "linear": 0.675,
+      "squared": 0.894375,
+      "method": "First 8 s, 4th-order 10 kHz Butterworth high-pass, zero-intercept regression"
+    },
+    "reverb": {
+      "original": 0.7338264993755218,
+      "linear": 0.485,
+      "squared": 0.734775,
+      "method": "First 8 s, 4th-order 10 kHz Butterworth high-pass, zero-intercept regression"
+    }
+  }
+}
