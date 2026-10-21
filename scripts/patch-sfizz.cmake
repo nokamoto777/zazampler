@@ -4,7 +4,7 @@ function(zazampler_patch file before after)
   file(READ "${file}" text)
   # Earlier extensions may split a previously inserted block; recognize the
   # unique field/handler before applying that older patch again.
-  foreach(marker "const auto* zazamplerSettings = static_cast<const VoiceModSettings*>" "impl.zazamplerMod_.prepare(impl.sampleRate_);" "impl.zazamplerMod_.process(buffer.getSpan(0).data()" "const float* zazamplerPitch = nullptr;" "const void* zazamplerVoiceSettings = nullptr;" "MATCH(\"/zazampler/pitch\", \"bi\")" "unsigned zazamplerOffset_ = 0;" "pitchSpan[i] += cfg.zazamplerPitch" "pitchSpan[i] += zazamplerMod_.pitch")
+  foreach(marker "MATCH(\"/zazampler/voice\", \"b\")" "MATCH(\"/zazampler/unavailable\", \"\")" "const auto* zazamplerSettings = static_cast<const VoiceModSettings*>" "impl.zazamplerMod_.prepare(impl.sampleRate_);" "impl.zazamplerMod_.process(buffer.getSpan(0).data()" "const float* zazamplerPitch = nullptr;" "const void* zazamplerVoiceSettings = nullptr;" "MATCH(\"/zazampler/pitch\", \"bi\")" "unsigned zazamplerOffset_ = 0;" "pitchSpan[i] += cfg.zazamplerPitch" "pitchSpan[i] += zazamplerMod_.pitch")
     string(FIND "${after}" "${marker}" in_after)
     string(FIND "${text}" "${marker}" in_file)
     if(NOT in_after EQUAL -1 AND NOT in_file EQUAL -1)
@@ -57,3 +57,9 @@ zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    zazamplerMod_.rele
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.powerFollower_.process(buffer);" "    if (impl.zazamplerOwnRelease_ && (!zazamplerSettings || !zazamplerSettings->envelopes.ampEnabled || impl.zazamplerMod_.ampFinished()))\n        impl.switchState(State::cleanMeUp);\n    impl.powerFollower_.process(buffer);")
 
 zazampler_patch("${zazampler_sfizz}/src/sfizz/Voice.cpp" "    impl.zazamplerMod_.generate(zazamplerSettings, buffer.getNumFrames(), delay);" "    if (!impl.zazamplerOwnRelease_ && !impl.offed_ && !region->flexAmpEG && region->amplitudeEG.release <= 0.001f && zazamplerSettings && zazamplerSettings->envelopes.ampEnabled && zazamplerSettings->envelopes.ownRelease) {\n        impl.zazamplerOwnRelease_ = true;\n        if (impl.released()) { impl.egAmplitude_.setReleaseTime(1000.f); impl.egAmplitude_.stopDynamicUpdates(); }\n    }\n    impl.zazamplerMod_.generate(zazamplerSettings, buffer.getNumFrames(), delay);")
+# Preserve unavailable references before upstream removes unplayable regions.
+# Loader-thread diagnostics only; does not change region/audio behavior.
+zazampler_patch("${zazampler_sfizz}/src/sfizz/SynthPrivate.h" "    std::string rootPath_;" "    std::vector<std::string> zazamplerUnavailable_;\n    std::string rootPath_;")
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Synth.cpp" "    filePool.setRootDirectory(rootDirectory);" "    filePool.setRootDirectory(rootDirectory);\n    zazamplerUnavailable_.clear();")
+zazampler_patch("${zazampler_sfizz}/src/sfizz/Synth.cpp" "        layers_.erase(layers_.begin() + currentRegionIndex);" "        if (!region.isGenerator()) zazamplerUnavailable_.push_back(region.sampleId->filename());\n        layers_.erase(layers_.begin() + currentRegionIndex);")
+zazampler_patch("${zazampler_sfizz}/src/sfizz/SynthMessaging.cpp" "        MATCH(\"/hello\", \"\") {" "        MATCH(\"/zazampler/unavailable\", \"\") {\n            for (const auto& file : impl.zazamplerUnavailable_) client.receive<'s'>(delay, path, file.c_str());\n        } break;\n\n        MATCH(\"/hello\", \"\") {")

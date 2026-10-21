@@ -10,6 +10,8 @@ struct VoiceModSettings {
     MatrixSettings matrix;
     const PerformanceFrame* expression=nullptr;
     int frames=0,filterMode=0;
+    LfoModulation* display=nullptr; bool* displayActive=nullptr;
+    double ppq=0; bool positionValid=false;
     bool expressionKey=false;
     float bpm=120,cutoff=20000,resonance=0.707f,keytrack=0;
 };
@@ -28,7 +30,7 @@ public:
             EnvelopeEvent event;
             if(first){event.flags=1;first=false;}
             if(releaseAt>=0 && static_cast<int>(i)>=releaseAt){event.flags|=2;releaseAt=-1;released=true;}
-            auto mod=lfos.tick(p->lfos,p->bpm,(event.flags&1)!=0);
+            auto mod=lfos.tick(p->lfos,p->bpm,(event.flags&1)!=0,p->positionValid,p->ppq+i*p->bpm/(60.*rate));
             const auto env=envelopes.tick(p->envelopes,event);lastAmp=env.amp;
             if(p->envelopes.ampEnabled)mod.amplitude*=env.amp;
             mod.cutoffOctaves+=env.filter*p->envelopes.filterOctaves;
@@ -52,6 +54,9 @@ public:
             mod.cutoffOctaves=std::clamp(mod.cutoffOctaves+p->keytrack*(performance.note-60)/12,-10.f,10.f);
             mod.pan=std::clamp(mod.pan,-1.f,1.f);mod.pitchCents=std::clamp(mod.pitchCents,-4800.f,4800.f);
             frames[i]=mod;
+        }
+        if(count>delay && p->display && p->displayActive && (!released || lastAmp>1e-7f)) {
+            *p->display=frames[count-1];*p->displayActive=true;
         }
         if(releaseAt>=0)releaseAt=std::max(0,releaseAt-static_cast<int>(count));
     }

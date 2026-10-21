@@ -113,9 +113,9 @@ void Effects::process(float* l,float* r,int n,const FxSettings& p,float bpm,cons
 }
 
 LfoModulation Effects::modulationTick(const FxSettings& p,float bpm,const LfoSettingsBank& lfoSettings,bool noteOn,
-    const EnvelopeSettings& envelopeSettings,EnvelopeEvent event,const MatrixSettings& matrix,const PerformanceFrame& performance) {
+    const EnvelopeSettings& envelopeSettings,EnvelopeEvent event,const MatrixSettings& matrix,const PerformanceFrame& performance,bool positionValid,double ppq) {
     if(modulationInitial){ampEnvelopeBlend.value=envelopeSettings.ampEnabled?1.f:0.f;filterEnvelopeDepth.value=envelopeSettings.filterOctaves;keytrackAmount.value=p.keytrack;modulationInitial=false;}
-        auto mod=lfos.tick(lfoSettings,bpm,noteOn);
+        auto mod=lfos.tick(lfoSettings,bpm,noteOn,positionValid,ppq);
         const auto eg=envelopes.tick(envelopeSettings,event);
         const float ampBlend=ampEnvelopeBlend.tick(envelopeSettings.ampEnabled?1.f:0.f,smoothing);
         mod.amplitude*=1.f+ampBlend*(eg.amp-1.f);

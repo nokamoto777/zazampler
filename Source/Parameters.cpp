@@ -215,6 +215,14 @@ const std::vector<ParameterSpec>& parameterSpecs() {
         ,{"envCurve","Envelope curve",6,0,1,0,1,{"Linear","Exponential"}}
         ,{"envAmpOwnRelease","Amp release source",6,0,1,0,1,{"SFZ","Envelope"}}
         ,{"monoSampleHold","Mono sample selection",7,0,1,0,1,{"Each note","Phrase"}}
+        ,{"lfo1PhaseLock","LFO 1 phase lock",5,0,1,0,1,{"Free phase","DAW phase"}}
+        ,{"lfo2PhaseLock","LFO 2 phase lock",5,0,1,0,1,{"Free phase","DAW phase"}}
+        ,{"lfo3PhaseLock","LFO 3 phase lock",5,0,1,0,1,{"Free phase","DAW phase"}}
+        ,{"seqLatch","Arpeggiator latch",8,0,1,0,1,{"Latch off","Latch on"}}
+        ,{"midiOutput","Generated MIDI output",8,0,1,0,1,{"MIDI out off","MIDI out on"}}
+        ,{"outputLimiter","Output limiter",4,0,1,0,1,{"Limiter off","Limiter on"}}
+        ,{"rexPlayback","REX playback",8,0,1,0,1,{"Slice keys","Host loop"}}
+        ,{"patchCrossfade","Patch crossfade",4,0,1,1,1,{"Cut","20 ms fade"}}
     };return specs;
 }
 juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout() {
@@ -248,7 +256,8 @@ LfoSettingsBank readLfoSettings(juce::AudioProcessorValueTreeState& state) {
         {"lfo3Shape","lfo3Target","lfo3Sync","lfo3Division","lfo3Reset","lfo3Rate","lfo3Skew","lfo3Fade","lfo3Depth"}};
     for(size_t i=0;i<3;++i) {
         auto get=[&](int j){return state.getRawParameterValue(ids[i][j])->load();};
-        auto& p=result[i];p.shape=static_cast<int>(get(0));p.target=static_cast<int>(get(1));p.sync=static_cast<int>(get(2));p.division=static_cast<int>(get(3));p.retrigger=static_cast<int>(get(4));
+        static const char* phaseIds[]={"lfo1PhaseLock","lfo2PhaseLock","lfo3PhaseLock"};
+        auto& p=result[i];p.phaseLock=state.getRawParameterValue(phaseIds[i])->load()>0.5f;p.shape=static_cast<int>(get(0));p.target=static_cast<int>(get(1));p.sync=static_cast<int>(get(2));p.division=static_cast<int>(get(3));p.retrigger=static_cast<int>(get(4));
         p.hz=get(5);p.skew=get(6);p.fade=get(7);p.depth=get(8);
     }
     return result;
@@ -278,7 +287,7 @@ SequenceSettings readSequenceSettings(juce::AudioProcessorValueTreeState& state)
     p.rhythm=static_cast<int>(get("seqRhythm"));p.hits=static_cast<int>(get("seqHits"));p.rotation=static_cast<int>(get("seqRotation"));p.swing=(get("seqSwing")-50.f)*0.02f;p.noteOrder=static_cast<int>(get("seqNoteOrder"));
     static const char* notes[]={"seqNote1","seqNote2","seqNote3","seqNote4","seqNote5","seqNote6","seqNote7","seqNote8"};
     static const char* velocities[]={"seqVel1","seqVel2","seqVel3","seqVel4","seqVel5","seqVel6","seqVel7","seqVel8"};
-    p.hostSync=get("seqHostSync")>0.5f;
+    p.hostSync=get("seqHostSync")>0.5f;p.latch=get("seqLatch")>0.5f;
     static const char* ties[]={"seqTie1","seqTie2","seqTie3","seqTie4","seqTie5","seqTie6","seqTie7","seqTie8"};
     for(size_t i=0;i<8;++i){p.ties[i]=get(ties[i])>0.5f;p.notes[i]=static_cast<int>(get(notes[i]));p.velocities[i]=get(velocities[i]);}return p;
 }

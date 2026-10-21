@@ -49,3 +49,17 @@ void Engine::midi(const unsigned char* d, int n, int t) {
     default: break;
     }
 }
+
+#include <filesystem>
+#include <set>
+std::vector<std::string> Engine::missingSamples(const std::string& sfzPath) {
+    std::set<std::string> unavailable;
+    std::unique_ptr<sfizz_client_t,ClientDeleter> query(sfizz_create_client(&unavailable));
+    sfizz_set_receive_callback(query.get(),[](void* data,int,const char*,const char* sig,const sfizz_arg_t* args){
+        if(sig && sig[0]=='s' && args[0].s)static_cast<std::set<std::string>*>(data)->insert(args[0].s);
+    });
+    sfizz_send_message(synth.get(),query.get(),0,"/zazampler/unavailable","",nullptr);
+    std::vector<std::string> result;
+    for(const auto& file:unavailable)result.push_back((std::filesystem::path(sfzPath).parent_path()/file).string());
+    return result;
+}

@@ -1,3 +1,18 @@
+# 0.9.5 — Remaining playback features
+
+- Arpラッチ、生成MIDI出力、サンプルピークリミッターを追加。
+- REX格納PPQによるHost loop。DAWテンポ・シーク・停止に追従。
+- 発音中の音源切替を20 msでクロスフェード。無音時は即時切替。
+- 読込不可のサンプル参照をsfizzのregion除去前に収集し、ログ出力。
+- 新規パラメーター5個は末尾追加。
+
+# 0.9.4 — Push / modulation display
+
+- PUSH SETUP: Live Configureへ主要8項目の同値操作通知。初回にLiveでデフォルト保存が必要。既存パラメーターID・順序を維持。
+- Cutoff / Resonance / Volume / Driveに実処理値の水色指標。GlobalとPer voiceの代表値を表示。GUIから値を書き戻さない。
+- LFOごとのDAW PPQ位相ロック、ループ時の再現可能なS&Hを追加。
+- 指数Releaseの長さをホストへ残響時間として通知。
+
 # 変更履歴
 
 ## 0.9.3 — RX reference-audio calibration

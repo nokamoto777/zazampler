@@ -2,6 +2,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <velociloops.h>
 #include <stdexcept>
+#include "PlaybackExtras.h"
 
 // Loader-thread only. The cache is owned by the instrument and outlives sfizz's
 // streaming engine; source libraries are never modified.
@@ -9,6 +10,7 @@ class RexImport {
 public:
     juce::File directory,sfz;
     juce::String description;
+    std::vector<RexSliceEvent> events;double loopBeats=0;
     explicit RexImport(const juce::File& source) {
         if(source.getSize()<=0 || source.getSize()>64*1024*1024)throw std::runtime_error("REX input must be between 1 byte and 64 MiB");
         VLError error=VL_OK;auto* raw=vl_open(source.getFullPathName().toRawUTF8(),&error);
@@ -21,10 +23,14 @@ public:
         if(directory.createDirectory().failed())throw std::runtime_error("Cannot create REX decode cache");
         try {
             juce::String instrument="// REX slices: MIDI 0..127; CC20 selects groups of 128.\n<control> set_cc20=0\n<global> ampeg_attack=0 ampeg_release=0.01 loop_mode=one_shot pitch_keytrack=0\n";
+            loopBeats=info.ppq_length/3840.;
             int64_t total=0;juce::WavAudioFormat wav;
             for(int slice=0;slice<info.slice_count;++slice) {
+                VLSliceInfo timing{};check(vl_get_slice_info(raw,slice,&timing));
                 const int frames=vl_get_slice_frame_count(raw,slice);
                 if(frames<=0)continue;
+                if(!(timing.flags&VL_SLICE_FLAG_MUTED) && timing.ppq_pos>=0 && timing.ppq_pos/3840.<loopBeats)
+                    events.push_back({timing.ppq_pos/3840.,slice});
                 total+=static_cast<int64_t>(frames)*info.channels;
                 if(frames>10000000 || total>64000000)throw std::runtime_error("REX decoded audio exceeds 256 MiB limit");
                 juce::AudioBuffer<float> audio(info.channels,frames);int written=0;
@@ -39,6 +45,7 @@ public:
                 const int key=slice%128,page=slice/128;
                 instrument+="<region> sample="+name+" key="+juce::String(key)+" locc20="+juce::String(page)+" hicc20="+juce::String(page)+"\n";
             }
+            std::stable_sort(events.begin(),events.end(),[](const auto& a,const auto& b){return a.beat<b.beat;});
             sfz=directory.getChildFile("slices.sfz");if(!sfz.replaceWithText(instrument))throw std::runtime_error("Cannot write REX instrument cache");
             description="REX | "+juce::String(info.slice_count)+" slices | "+juce::String(info.tempo/1000.,2)+" BPM | MIDI 0-127 | Slice page / CC20 selects next 128";
         } catch(...) {directory.deleteRecursively();throw;}
