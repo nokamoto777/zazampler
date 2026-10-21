@@ -44,8 +44,8 @@ inline void run() {
     delay.process(l.data(),r.data(),static_cast<int>(l.size()),p,120);
     require(std::abs(l[24000]-1)<1.e-5f && std::abs(l[48000]-0.5f)<1.e-5f && std::abs(l[72000]-0.25f)<1.e-5f,"delay impulse/feedback timing");
     require(rms(l,1)>0.001f,"delay silence");
-    // Imported normalized Amount uses a squared wet fraction. Verify dry and
-    // first echo independently, retaining linear behavior for old sessions.
+    // Opt-in squared Amount hypothesis. Verify dry and first echo independently;
+    // imports and old sessions retain the default linear behavior.
     for(bool squared:{false,true}) {
         Effects blend;blend.prepare(48000);FxSettings mix;
         mix.delayMix=0.5f;mix.delayMs=10;mix.delayFeedback=0;mix.spaceSquaredMix=squared;
@@ -54,6 +54,10 @@ inline void run() {
         const float wet=squared?0.25f:0.5f;
         require(std::abs(left[0]-(1-wet))<1.e-6f && std::abs(left[480]-wet)<1.e-6f,"delay Amount taper");
         mix.delayMix=0;mix.reverb=0.5f;blend.reset();
+        // JUCE ramps reverb gains for 10 ms after a parameter change. Settle
+        // using silence before measuring the steady-state impulse response.
+        left.assign(1000,0);right=left;
+        blend.process(left.data(),right.data(),1000,mix,120);
         left.assign(1000,0);right=left;left[0]=right[0]=1;
         blend.process(left.data(),right.data(),1000,mix,120);
         require(std::abs(left[0]-(1-wet))<1.e-6f,"reverb dry Amount taper");
